@@ -97,31 +97,23 @@ export class SoundManager {
         
         const oldBGM = this.activeBGM;
         
-        this.lastBGMSound = sound;
-        const newBGM = this.createPlayingSound(sound, buffer, true);
-        this.activeBGM = newBGM;
-        
         if (oldBGM) {
             this.performFadeOut(oldBGM);
         }
         
-        this.fadeInBGM();
+        this.lastBGMSound = sound;
+        const newBGM = this.createPlayingSound(sound, buffer, true);
+        this.activeBGM = newBGM;
+        
+        // Start and fade in the new BGM
+        this.isBGMPlaying = true;
+        newBGM.source.start(0);
+        newBGM.gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+        newBGM.gainNode.gain.linearRampToValueAtTime(this.masterBGMVolume * newBGM.sound.volume, this.audioContext.currentTime + this.fadeTime);
         
         this.airPlayAudioElement.src = sound.publicURL || '';
-        if (this.isBGMPlaying) {
-             this.airPlayAudioElement.play().catch(e => console.error("AirPlay audio failed to play:", e));
-        }
-    }
-
-    private fadeInBGM() {
-        if (!this.activeBGM) return;
-        this.isBGMPlaying = true;
-        this.activeBGM.source.start(0);
-        this.activeBGM.gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-        this.activeBGM.gainNode.gain.linearRampToValueAtTime(this.masterBGMVolume * this.activeBGM.sound.volume, this.audioContext.currentTime + this.fadeTime);
-        this.airPlayAudioElement.volume = this.masterBGMVolume * this.activeBGM.sound.volume;
+        this.airPlayAudioElement.volume = this.masterBGMVolume * newBGM.sound.volume;
         this.airPlayAudioElement.play().catch(e => console.error("AirPlay audio failed to play:", e));
-        this.updatePlayingStates();
     }
 
     private fadeOutBGM(onComplete?: () => void) {
@@ -149,7 +141,22 @@ export class SoundManager {
         if (!this.lastBGMSound) return;
 
         if (!this.activeBGM) { // Resuming from paused state
-            this.playSound(this.lastBGMSound);
+            const buffer = this.audioBuffers.get(this.lastBGMSound.id);
+            if (!buffer) {
+                 this.loadSound(this.lastBGMSound).then(() => this.toggleBGMPlayPause());
+                 return;
+            }
+            const newBGM = this.createPlayingSound(this.lastBGMSound, buffer, true);
+            this.activeBGM = newBGM;
+            this.isBGMPlaying = true;
+            newBGM.source.start(0);
+            newBGM.gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+            newBGM.gainNode.gain.linearRampToValueAtTime(this.masterBGMVolume * newBGM.sound.volume, this.audioContext.currentTime + this.fadeTime);
+            
+            this.airPlayAudioElement.src = this.lastBGMSound.publicURL || '';
+            this.airPlayAudioElement.volume = this.masterBGMVolume * newBGM.sound.volume;
+            this.airPlayAudioElement.play().catch(e => console.error("AirPlay audio failed to play:", e));
+
         } else { // Pausing
             this.isBGMPlaying = false;
             this.fadeOutBGM();
@@ -158,13 +165,18 @@ export class SoundManager {
     }
     
     private playAmbience(sound: Sound, buffer: AudioBuffer) {
+        // If we're clicking the sound that's already playing, stop it.
         if (this.activeAMB?.sound.id === sound.id) {
             this.stopAmbience();
             return;
         }
+
+        // If another ambience is playing, stop it first.
         if (this.activeAMB) {
             this.stopAmbience();
         }
+
+        // Play the new sound.
         const playingSound = this.createPlayingSound(sound, buffer, sound.loop);
         this.activeAMB = playingSound;
         playingSound.source.start(0);

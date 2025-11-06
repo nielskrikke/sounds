@@ -39,13 +39,29 @@ export const createPreset = async (
 
 export const updatePreset = async (
   id: string,
-  sounds: Sound[]
+  updates: { name?: string, sounds?: Sound[] }
 ): Promise<SoundboardPreset | null> => {
-    const soundsToStore = sounds.map(({ publicURL, ...rest }) => rest);
+    const updateData: {name?: string, sounds?: any[], updated_at: string} = {
+        updated_at: new Date().toISOString()
+    };
+
+    if (updates.name) {
+        updateData.name = updates.name;
+    }
+    if (updates.sounds) {
+        updateData.sounds = updates.sounds.map(({ publicURL, ...rest }) => rest);
+    }
+    
+    // Do not update if no data is provided to update
+    if (Object.keys(updateData).length <= 1) {
+        const { data: currentData } = await supabase.from('soundboard_presets').select().eq('id', id).single();
+        return currentData;
+    }
+
 
     const { data, error } = await supabase
         .from('soundboard_presets')
-        .update({ sounds: soundsToStore, updated_at: new Date().toISOString() })
+        .update(updateData)
         .eq('id', id)
         .select()
         .single();

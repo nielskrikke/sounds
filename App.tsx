@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
 import { Sound, SoundboardPreset, SoundType } from './types';
@@ -11,7 +12,6 @@ import { AddSoundModal } from './components/AddSoundModal';
 import { EditSoundModal } from './components/EditSoundModal';
 import { PresetManagerModal } from './components/PresetManagerModal';
 import { PlusCircle } from 'lucide-react';
-// Fix: Import the supabase client to resolve 'Cannot find name' errors.
 import { supabase } from './lib/supabase';
 
 const App: React.FC = () => {
@@ -20,6 +20,7 @@ const App: React.FC = () => {
     const [authError, setAuthError] = useState<string | null>(null);
 
     const [sounds, setSounds] = useState<Sound[]>([]);
+    const [librarySounds, setLibrarySounds] = useState<Sound[]>([]);
     const [presets, setPresets] = useState<SoundboardPreset[]>([]);
     const [currentPresetId, setCurrentPresetId] = useState<string | null>(null);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -62,6 +63,7 @@ const App: React.FC = () => {
             fetchData(user.id);
         } else {
             setSounds([]);
+            setLibrarySounds([]);
             setPresets([]);
             setCurrentPresetId(null);
             soundManagerRef.current?.stopAllSounds();
@@ -75,6 +77,7 @@ const App: React.FC = () => {
             getSoundFiles(userId),
             getPresets(userId),
         ]);
+        setLibrarySounds(fetchedSounds);
         setSounds(fetchedSounds);
         setPresets(fetchedPresets);
         soundManagerRef.current?.loadSounds(fetchedSounds);
@@ -111,6 +114,7 @@ const App: React.FC = () => {
         const newSound = await uploadSoundFile(user.id, file, details);
         if (newSound) {
             setSounds(s => [...s, newSound]);
+            setLibrarySounds(l => [...l, newSound]);
             soundManagerRef.current?.loadSound(newSound);
             setHasUnsavedChanges(true);
         }
@@ -119,7 +123,9 @@ const App: React.FC = () => {
     const handleUpdateSound = async (id: string, updates: Partial<Sound>) => {
         const updatedSound = await updateSoundFile(id, updates);
         if (updatedSound) {
-            setSounds(s => s.map(sound => sound.id === id ? updatedSound : sound));
+            const updateList = (list: Sound[]) => list.map(sound => sound.id === id ? updatedSound : sound);
+            setSounds(updateList);
+            setLibrarySounds(updateList);
             soundManagerRef.current?.loadSound(updatedSound);
             setHasUnsavedChanges(true);
         }
@@ -130,59 +136,113 @@ const App: React.FC = () => {
             soundManagerRef.current?.stopSound(soundToDelete);
             const success = await deleteSoundFile(soundToDelete);
             if (success) {
-                setSounds(s => s.filter(sound => sound.id !== soundToDelete.id));
+                const filterList = (list: Sound[]) => list.filter(sound => sound.id !== soundToDelete.id);
+                setSounds(filterList);
+                setLibrarySounds(filterList);
                 setHasUnsavedChanges(true);
             }
         }
     };
 
+    const handleLoadLibrary = async () => {
+        if (hasUnsavedChanges) {
+            if (!window.confirm("You have unsaved changes that will be lost. Are you sure you want to load the full library?")) {
+                return;
+            }
+        }
+        if (!user) return;
+        soundManagerRef.current?.stopAllSounds();
+        setSounds(librarySounds);
+        soundManagerRef.current?.loadSounds(librarySounds);
+        setCurrentPresetId(null);
+        setHasUnsavedChanges(false);
+    }
+
     const handleLoadPreset = (presetId: string) => {
+        if (hasUnsavedChanges) {
+            if (!window.confirm("You have unsaved changes that will be lost. Are you sure you want to load a new preset?")) {
+                return;
+            }
+        }
         const preset = presets.find(p => p.id === presetId);
         if (preset) {
             soundManagerRef.current?.stopAllSounds();
             const soundsWithUrls = preset.sounds.map(sound => {
-                const { data: { publicUrl } } = supabase.storage.from('sound-files').getPublicUrl(sound.file_path);
-                return { ...sound, publicURL: publicUrl };
-            });
-            setSounds(soundsWithUrls);
-            soundManagerRef.current?.loadSounds(soundsWithUrls);
+                const fullSound = librarySounds.find(s => s.id === sound.id);
+                return fullSound ? { ...sound, publicURL: fullSound.publicURL } : sound;
+            }).filter(s => s.publicURL);
+            
+            setSounds(soundsWithUrls as Sound[]);
+            soundManagerRef.current?.loadSounds(soundsWithUrls as Sound[]);
             setCurrentPresetId(presetId);
             setHasUnsavedChanges(false);
         }
     };
 
-    const handleCreatePreset = async (name: string) => {
-        if (!user) return;
-        
-        let targetSounds = sounds;
-        if (currentPresetId && hasUnsavedChanges) {
-           await handleUpdatePreset(currentPresetId, sounds);
-        }
-
-        const newPreset = await createPreset(user.id, name, targetSounds);
-        if (newPreset) {
-            setPresets(p => [...p, newPreset]);
-            setCurrentPresetId(newPreset.id);
+    const handleSaveChangesToCurrentPreset = async () => {
+        if (!currentPresetId || !hasUnsavedChanges) return;
+        const updatedPreset = await updatePreset(currentPresetId, { sounds });
+        if (updatedPreset) {
+            const rehydratedPreset = {
+                ...updatedPreset,
+                sounds: updatedPreset.sounds.map(sound => {
+                    const libSound = librarySounds.find(s => s.id === sound.id);
+                    return { ...sound, publicURL: libSound?.publicURL || '' };
+                })
+            };
+            setPresets(p => p.map(pr => pr.id === currentPresetId ? rehydratedPreset : pr));
             setHasUnsavedChanges(false);
+        } else {
+            alert("Failed to save preset. Please try again.");
         }
     };
 
-    const handleUpdatePreset = async (presetId: string, updatedSounds: Sound[]) => {
-        const updatedPreset = await updatePreset(presetId, updatedSounds);
-        if(updatedPreset) {
-            setPresets(p => p.map(pr => pr.id === presetId ? updatedPreset : pr));
+    const handleCreatePreset = async (name: string, soundIds: string[]) => {
+        if (!user) return;
+        const soundsForPreset = librarySounds.filter(s => soundIds.includes(s.id));
+        const newPreset = await createPreset(user.id, name, soundsForPreset);
+        if (newPreset) {
+            const rehydratedPreset = {
+                ...newPreset,
+                sounds: newPreset.sounds.map(sound => {
+                    const libSound = librarySounds.find(s => s.id === sound.id);
+                    return { ...sound, publicURL: libSound?.publicURL || '' };
+                })
+            };
+            setPresets(p => [...p, rehydratedPreset].sort((a,b) => a.name.localeCompare(b.name)));
         }
-    }
+    };
+    
+    const handleUpdatePresetFromModal = async (presetId: string, name: string, soundIds: string[]) => {
+        const soundsForPreset = librarySounds.filter(s => soundIds.includes(s.id));
+        const updatedPreset = await updatePreset(presetId, { name, sounds: soundsForPreset });
+
+        if (updatedPreset) {
+            const rehydratedPreset = {
+                ...updatedPreset,
+                sounds: updatedPreset.sounds.map(sound => {
+                    const libSound = librarySounds.find(s => s.id === sound.id);
+                    return { ...sound, publicURL: libSound?.publicURL || '' };
+                })
+            };
+
+            setPresets(p => p.map(pr => pr.id === presetId ? rehydratedPreset : pr).sort((a,b) => a.name.localeCompare(b.name)));
+            if (currentPresetId === presetId) {
+                setSounds(rehydratedPreset.sounds);
+                soundManagerRef.current?.loadSounds(rehydratedPreset.sounds);
+            }
+        }
+    };
 
     const handleDeletePreset = async (presetId: string) => {
-        if (window.confirm("Are you sure you want to delete this preset?")) {
-            const success = await deletePreset(presetId);
-            if (success) {
-                setPresets(p => p.filter(preset => preset.id !== presetId));
-                if (currentPresetId === presetId) {
-                    setCurrentPresetId(null);
-                    setSounds([]);
-                }
+        const success = await deletePreset(presetId);
+        if (success) {
+            setPresets(p => p.filter(preset => preset.id !== presetId));
+            if (currentPresetId === presetId) {
+                setCurrentPresetId(null);
+                setHasUnsavedChanges(false);
+                setSounds(librarySounds);
+                soundManagerRef.current?.loadSounds(librarySounds);
             }
         }
     };
@@ -241,8 +301,11 @@ const App: React.FC = () => {
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
             <PresetHeader
                 presets={presets}
-                currentPresetId={hasUnsavedChanges ? null : currentPresetId}
+                currentPresetId={currentPresetId}
+                hasUnsavedChanges={hasUnsavedChanges}
+                onSaveChanges={handleSaveChangesToCurrentPreset}
                 onLoadPreset={handleLoadPreset}
+                onLoadLibrary={handleLoadLibrary}
                 onManagePresets={() => setPresetModalOpen(true)}
                 isBgmPlaying={Object.entries(playingStates).some(([id, playing]) => playing && sounds.find(s => s.id === id)?.type === 'Background Music')}
                 onToggleBgm={handleToggleBGM}
@@ -270,8 +333,10 @@ const App: React.FC = () => {
             <PresetManagerModal
                 isOpen={isPresetModalOpen}
                 presets={presets}
+                allSounds={librarySounds}
                 onClose={() => setPresetModalOpen(false)}
                 onCreatePreset={handleCreatePreset}
+                onUpdatePreset={handleUpdatePresetFromModal}
                 onDeletePreset={handleDeletePreset}
                 onLoadPreset={handleLoadPreset}
             />

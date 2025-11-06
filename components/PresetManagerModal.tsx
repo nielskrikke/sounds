@@ -1,28 +1,65 @@
 
 import React, { useState } from 'react';
-import { SoundboardPreset } from '../types';
-import { X, Trash2 } from 'lucide-react';
+import { SoundboardPreset, Sound } from '../types';
+import { X, Trash2, Edit, Plus } from 'lucide-react';
+import { PresetEditor } from './PresetEditor';
 
 interface PresetManagerModalProps {
   isOpen: boolean;
   presets: SoundboardPreset[];
+  allSounds: Sound[];
   onClose: () => void;
-  onCreatePreset: (name: string) => Promise<void>;
+  onCreatePreset: (name: string, soundIds: string[]) => Promise<void>;
+  onUpdatePreset: (id: string, name: string, soundIds: string[]) => Promise<void>;
   onDeletePreset: (id: string) => Promise<void>;
   onLoadPreset: (id: string) => void;
 }
 
-export const PresetManagerModal: React.FC<PresetManagerModalProps> = ({ isOpen, presets, onClose, onCreatePreset, onDeletePreset, onLoadPreset }) => {
-  const [newPresetName, setNewPresetName] = useState('');
+export const PresetManagerModal: React.FC<PresetManagerModalProps> = ({ 
+    isOpen, 
+    presets, 
+    allSounds,
+    onClose, 
+    onCreatePreset, 
+    onUpdatePreset,
+    onDeletePreset, 
+    onLoadPreset 
+}) => {
+  const [view, setView] = useState<'list' | 'create' | 'edit'>('list');
+  const [editingPreset, setEditingPreset] = useState<SoundboardPreset | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const handleCreatePreset = async () => {
-    if (!newPresetName.trim()) return;
-    setIsSubmitting(true);
-    await onCreatePreset(newPresetName.trim());
-    setNewPresetName('');
-    setIsSubmitting(false);
+  const handleCreateClick = () => {
+    setEditingPreset(null);
+    setView('create');
   };
+
+  const handleEditClick = (preset: SoundboardPreset) => {
+    setEditingPreset(preset);
+    setView('edit');
+  };
+
+  const handleCancel = () => {
+    setView('list');
+    setEditingPreset(null);
+  };
+  
+  const handleSave = async (name: string, soundIds: string[]) => {
+      setIsSubmitting(true);
+      if(view === 'create') {
+          await onCreatePreset(name, soundIds);
+      } else if (view === 'edit' && editingPreset) {
+          await onUpdatePreset(editingPreset.id, name, soundIds);
+      }
+      setIsSubmitting(false);
+      setView('list');
+  }
+  
+  const handleDelete = async (id: string) => {
+      if(window.confirm("Are you sure you want to delete this preset? This cannot be undone.")) {
+          await onDeletePreset(id);
+      }
+  }
 
   if (!isOpen) return null;
 
@@ -34,48 +71,54 @@ export const PresetManagerModal: React.FC<PresetManagerModalProps> = ({ isOpen, 
           <button onClick={onClose} className="text-slate-400 hover:text-white"><X size={24} /></button>
         </div>
         
-        <div className="space-y-4 mb-6">
-          <h3 className="text-lg font-semibold text-white">Create New Preset</h3>
-          <div className="flex gap-2">
-            <input 
-              type="text" 
-              value={newPresetName}
-              onChange={(e) => setNewPresetName(e.target.value)}
-              placeholder="Preset Name (e.g., Tavern Night)"
-              className="flex-grow bg-slate-700 border border-slate-600 rounded-md p-2 text-white"
+        {view === 'list' && (
+            <>
+            <div className="flex justify-end mb-4">
+                 <button 
+                    onClick={handleCreateClick} 
+                    className="flex items-center gap-2 py-2 px-4 rounded-md text-white bg-blue-600 hover:bg-blue-500"
+                    >
+                    <Plus size={16}/> New Preset
+                </button>
+            </div>
+            <div className="space-y-2">
+            <h3 className="text-lg font-semibold text-white">Your Presets</h3>
+            <div className="max-h-80 overflow-y-auto pr-2">
+                {presets.length === 0 ? (
+                <p className="text-slate-400">You have no saved presets.</p>
+                ) : (
+                <ul className="space-y-2">
+                    {presets.map(preset => (
+                    <li key={preset.id} className="flex justify-between items-center bg-slate-700 p-3 rounded-md group">
+                        <span className="text-white font-medium cursor-pointer hover:text-blue-400 transition-colors" onClick={() => { onLoadPreset(preset.id); onClose(); }}>{preset.name}</span>
+                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEditClick(preset)} className="text-slate-400 hover:text-white">
+                                <Edit size={18} />
+                            </button>
+                            <button onClick={() => handleDelete(preset.id)} className="text-red-400 hover:text-red-300">
+                                <Trash2 size={18} />
+                            </button>
+                        </div>
+                    </li>
+                    ))}
+                </ul>
+                )}
+            </div>
+            </div>
+            <div className="flex justify-end pt-6">
+                <button onClick={onClose} className="py-2 px-4 rounded-md text-white bg-slate-600 hover:bg-slate-500">Close</button>
+            </div>
+            </>
+        )}
+        {(view === 'create' || view === 'edit') && (
+            <PresetEditor 
+                preset={editingPreset || undefined}
+                allSounds={allSounds}
+                onSave={handleSave}
+                onCancel={handleCancel}
+                isSubmitting={isSubmitting}
             />
-            <button 
-              onClick={handleCreatePreset} 
-              disabled={isSubmitting || !newPresetName.trim()}
-              className="py-2 px-4 rounded-md text-white bg-blue-600 hover:bg-blue-500 disabled:bg-slate-500"
-            >
-              {isSubmitting ? 'Saving...' : 'Save'}
-            </button>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <h3 className="text-lg font-semibold text-white">Your Presets</h3>
-          <div className="max-h-60 overflow-y-auto pr-2">
-            {presets.length === 0 ? (
-              <p className="text-slate-400">You have no saved presets.</p>
-            ) : (
-              <ul className="space-y-2">
-                {presets.map(preset => (
-                  <li key={preset.id} className="flex justify-between items-center bg-slate-700 p-3 rounded-md">
-                    <span className="text-white font-medium cursor-pointer" onClick={() => { onLoadPreset(preset.id); onClose(); }}>{preset.name}</span>
-                    <button onClick={() => onDeletePreset(preset.id)} className="text-red-400 hover:text-red-300">
-                      <Trash2 size={18} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-        <div className="flex justify-end pt-6">
-           <button onClick={onClose} className="py-2 px-4 rounded-md text-white bg-slate-600 hover:bg-slate-500">Close</button>
-        </div>
+        )}
       </div>
     </div>
   );
