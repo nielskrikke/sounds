@@ -1,7 +1,7 @@
 
 import { supabase } from './supabase';
 import { Sound } from '../types';
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from 'https://aistudiocdn.com/uuid@^13.0.0';
 
 export const getSoundFiles = async (userId: string): Promise<Sound[]> => {
   const { data, error } = await supabase
