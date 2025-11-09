@@ -1,16 +1,12 @@
 import React from 'react';
-import { SoundboardPreset } from '../types';
-import { Play, Pause, Volume2, VolumeX, LogOut, ListMusic, Save } from 'lucide-react';
+import { Scene } from '../types';
+import { Play, Pause, Volume2, VolumeX, LogOut } from 'lucide-react';
 import { AirPlayButton } from './AirPlayButton';
 
-interface PresetHeaderProps {
-  presets: SoundboardPreset[];
-  currentPresetId: string | null;
-  hasUnsavedChanges: boolean;
-  onLoadPreset: (presetId: string) => void;
-  onLoadLibrary: () => void;
-  onManagePresets: () => void;
-  onSaveChanges: () => void;
+interface SceneHeaderProps {
+  scenes: Scene[];
+  activeSceneId: string | null;
+  onSelectScene: (sceneId: string | null) => void;
   isBgmPlaying: boolean;
   onToggleBgm: () => void;
   bgmVolume: number;
@@ -19,14 +15,10 @@ interface PresetHeaderProps {
   airplayElement: HTMLAudioElement | null;
 }
 
-export const PresetHeader: React.FC<PresetHeaderProps> = ({
-  presets,
-  currentPresetId,
-  hasUnsavedChanges,
-  onLoadPreset,
-  onLoadLibrary,
-  onManagePresets,
-  onSaveChanges,
+export const SceneHeader: React.FC<SceneHeaderProps> = ({
+  scenes,
+  activeSceneId,
+  onSelectScene,
   isBgmPlaying,
   onToggleBgm,
   bgmVolume,
@@ -34,55 +26,43 @@ export const PresetHeader: React.FC<PresetHeaderProps> = ({
   onLogout,
   airplayElement
 }) => {
-  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const { value } = e.target;
-    if (value === 'library') {
-      onLoadLibrary();
-    } else {
-      onLoadPreset(value);
-    }
-  };
+  const buttonClass = "px-3 py-2 text-sm font-medium rounded-md transition-colors whitespace-nowrap";
+  const activeClass = "bg-amber-600 text-white";
+  const inactiveClass = "bg-stone-700 text-stone-300 hover:bg-stone-600";
 
   return (
-    <header className="bg-slate-800/50 backdrop-blur-sm sticky top-0 z-20 p-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-700">
+    <header className="bg-stone-800/50 backdrop-blur-sm sticky top-0 z-20 p-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-stone-700">
       <div className="flex items-center gap-2 md:gap-4 w-full sm:w-auto flex-wrap">
-        <ListMusic className="text-blue-400" size={24}/>
-        <div className="flex-grow">
-          <select
-            value={currentPresetId || 'library'}
-            onChange={handleSelectChange}
-            className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-          >
-            <option value="library">
-              Sound Library {currentPresetId === null && hasUnsavedChanges ? '*' : ''}
-            </option>
-            {presets.map(preset => (
-              <option key={preset.id} value={preset.id}>
-                {preset.name}{currentPresetId === preset.id && hasUnsavedChanges ? '*' : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-        {hasUnsavedChanges && currentPresetId && (
-            <button onClick={onSaveChanges} className="text-sm text-green-400 hover:text-green-300 whitespace-nowrap bg-slate-700 px-3 py-2 rounded-md flex items-center gap-2 transition-colors">
-                <Save size={16} /> Save
+        <h2 className="text-xl font-medieval text-white mr-2">Scenes</h2>
+        <div className="flex flex-wrap gap-2">
+            <button
+                onClick={() => onSelectScene(null)}
+                className={`${buttonClass} ${activeSceneId === null ? activeClass : inactiveClass}`}
+            >
+                All
             </button>
-        )}
-        <button onClick={onManagePresets} className="text-sm text-blue-400 hover:text-blue-300 whitespace-nowrap">
-          Manage Presets
-        </button>
+            {scenes.map(scene => (
+                <button
+                    key={scene.id}
+                    onClick={() => onSelectScene(scene.id)}
+                    className={`${buttonClass} ${activeSceneId === scene.id ? activeClass : inactiveClass}`}
+                >
+                    {scene.name}
+                </button>
+            ))}
+        </div>
       </div>
 
       <div className="flex items-center justify-center gap-4 w-full sm:w-auto">
         <button
           onClick={onToggleBgm}
-          className="p-2 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+          className="p-2 rounded-full text-stone-400 hover:bg-stone-700 hover:text-white transition-colors"
           aria-label={isBgmPlaying ? "Pause Background Music" : "Play Background Music"}
         >
           {isBgmPlaying ? <Pause size={20} /> : <Play size={20} />}
         </button>
         <div className="flex items-center gap-2 w-40">
-          {bgmVolume > 0 ? <Volume2 size={20} className="text-slate-400"/> : <VolumeX size={20} className="text-slate-400"/>}
+          {bgmVolume > 0 ? <Volume2 size={20} className="text-stone-400"/> : <VolumeX size={20} className="text-stone-400"/>}
           <input
             type="range"
             min="0"
@@ -90,11 +70,11 @@ export const PresetHeader: React.FC<PresetHeaderProps> = ({
             step="0.01"
             value={bgmVolume}
             onChange={(e) => onBgmVolumeChange(parseFloat(e.target.value))}
-            className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+            className="w-full h-2 bg-stone-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
           />
         </div>
         <AirPlayButton audioRef={airplayElement} />
-        <button onClick={onLogout} className="p-2 rounded-full text-slate-400 hover:bg-slate-700 hover:text-white transition-colors">
+        <button onClick={onLogout} className="p-2 rounded-full text-stone-400 hover:bg-stone-700 hover:text-white transition-colors">
           <LogOut size={20} />
         </button>
       </div>

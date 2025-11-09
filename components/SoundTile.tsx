@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Sound, SoundType } from '../types';
 import { MoreVertical, Music, Waves, Zap } from 'lucide-react';
@@ -13,9 +12,9 @@ interface SoundTileProps {
 }
 
 const typeConfig: { [key in SoundType]: { gradient: string; icon: React.ReactNode } } = {
-  'Background Music': { gradient: 'from-blue-500 to-blue-600', icon: <Music size={16} /> },
-  'Ambience': { gradient: 'from-emerald-500 to-emerald-600', icon: <Waves size={16} /> },
-  'Sound Effect': { gradient: 'from-amber-500 to-amber-600', icon: <Zap size={16} /> },
+  'Background Music': { gradient: 'from-[#4A785A] to-[#376246]', icon: <Music size={16} /> },
+  'Ambience': { gradient: 'from-[#B85A23] to-[#A4460F]', icon: <Waves size={16} /> },
+  'Sound Effect': { gradient: 'from-[#9E3E3D] to-[#8A2A29]', icon: <Zap size={16} /> },
 };
 
 const PulsingBars: React.FC = () => (
@@ -50,7 +49,7 @@ export const SoundTile: React.FC<SoundTileProps> = ({ sound, isPlaying, onPlay, 
   return (
     <div
       onClick={handleClick}
-      className={`relative group aspect-square rounded-lg p-3 flex flex-col justify-end cursor-pointer transition-all duration-300 shadow-lg hover:shadow-xl bg-gradient-to-br ${gradient} ${isPlaying ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-900 animate-pulse' : ''}`}
+      className={`relative group aspect-square rounded-xl p-3 flex flex-col justify-end cursor-pointer transition-all duration-300 shadow-lg hover:shadow-xl bg-gradient-to-br ${gradient} ${isPlaying ? 'ring-2 ring-white ring-offset-2 ring-offset-stone-900 animate-glow' : ''}`}
     >
       <div className="absolute top-2 right-2 flex items-center space-x-2">
         {isPlaying && <PulsingBars />}
@@ -62,9 +61,9 @@ export const SoundTile: React.FC<SoundTileProps> = ({ sound, isPlaying, onPlay, 
                 <MoreVertical size={16} className="text-white" />
             </button>
             {menuOpen && (
-                <div className="absolute right-0 mt-2 w-32 bg-slate-700 rounded-md shadow-lg z-10">
-                    <button onClick={(e) => { e.stopPropagation(); onEdit(sound); setMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-slate-600 rounded-t-md">Edit</button>
-                    <button onClick={(e) => { e.stopPropagation(); onDelete(sound); setMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-slate-600 rounded-b-md">Delete</button>
+                <div className="absolute right-0 mt-2 w-32 bg-stone-700 rounded-md shadow-lg z-10">
+                    <button onClick={(e) => { e.stopPropagation(); onEdit(sound); setMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-stone-600 rounded-t-md">Edit</button>
+                    <button onClick={(e) => { e.stopPropagation(); onDelete(sound); setMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-stone-600 rounded-b-md">Delete</button>
                 </div>
             )}
         </div>

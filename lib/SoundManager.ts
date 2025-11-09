@@ -20,6 +20,7 @@ export class SoundManager {
         this.airPlayAudioElement = document.createElement('audio');
         this.airPlayAudioElement.id = 'airplay-audio';
         this.airPlayAudioElement.loop = true;
+        this.airPlayAudioElement.muted = true;
         document.body.appendChild(this.airPlayAudioElement);
         this.onStateChange = onStateChangeCallback;
     }
