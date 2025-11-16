@@ -1,20 +1,18 @@
 import React from 'react';
 import { Sound, SoundType } from '../types';
-import { MoreVertical, Music, Waves, Zap } from 'lucide-react';
+import { Music, Waves, Zap, Star, Repeat } from 'lucide-react';
 
 interface SoundTileProps {
   sound: Sound;
   isPlaying: boolean;
   onPlay: (sound: Sound) => void;
   onStop: (sound: Sound) => void;
-  onEdit: (sound: Sound) => void;
-  onDelete: (sound: Sound) => void;
 }
 
 const typeConfig: { [key in SoundType]: { gradient: string; icon: React.ReactNode } } = {
   'Background Music': { gradient: 'from-[#4A785A] to-[#376246]', icon: <Music size={16} /> },
   'Ambience': { gradient: 'from-[#B85A23] to-[#A4460F]', icon: <Waves size={16} /> },
-  'Sound Effect': { gradient: 'from-[#9E3E3D] to-[#8A2A29]', icon: <Zap size={16} /> },
+  'One-shots': { gradient: 'from-[#9E3E3D] to-[#8A2A29]', icon: <Zap size={16} /> },
 };
 
 const PulsingBars: React.FC = () => (
@@ -26,65 +24,48 @@ const PulsingBars: React.FC = () => (
 );
 
 
-export const SoundTile: React.FC<SoundTileProps> = ({ sound, isPlaying, onPlay, onStop, onEdit, onDelete }) => {
-  const [menuOpen, setMenuOpen] = React.useState(false);
-  const menuRef = React.useRef<HTMLDivElement>(null);
-
+export const SoundTile: React.FC<SoundTileProps> = ({ sound, isPlaying, onPlay, onStop }) => {
   const { gradient } = typeConfig[sound.type];
 
   const handleClick = () => {
     isPlaying ? onStop(sound) : onPlay(sound);
   };
   
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const bgmTags = [sound.category_tag, sound.location_tag].filter(Boolean);
 
   return (
     <div
       onClick={handleClick}
       className={`relative group aspect-square rounded-xl p-3 flex flex-col justify-end cursor-pointer transition-all duration-300 shadow-lg hover:shadow-xl bg-gradient-to-br ${gradient} ${isPlaying ? 'ring-2 ring-white ring-offset-2 ring-offset-stone-900 animate-glow' : ''}`}
+      aria-label={`Play or stop ${sound.name}`}
     >
-      <div className="absolute top-2 right-2 flex items-center space-x-2">
-        {isPlaying && <PulsingBars />}
-        <div className="relative" ref={menuRef}>
-            <button
-                onClick={(e) => { e.stopPropagation(); setMenuOpen(prev => !prev); }}
-                className="opacity-0 group-hover:opacity-100 md:opacity-0 focus:opacity-100 transition-opacity p-1 rounded-full bg-black bg-opacity-20 hover:bg-opacity-40"
-            >
-                <MoreVertical size={16} className="text-white" />
-            </button>
-            {menuOpen && (
-                <div className="absolute right-0 mt-2 w-32 bg-stone-700 rounded-md shadow-lg z-10">
-                    <button onClick={(e) => { e.stopPropagation(); onEdit(sound); setMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-stone-600 rounded-t-md">Edit</button>
-                    <button onClick={(e) => { e.stopPropagation(); onDelete(sound); setMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-stone-600 rounded-b-md">Delete</button>
-                </div>
-            )}
-        </div>
-      </div>
-
-      <div className="text-white">
-        <h3 className="font-bold text-sm truncate">{sound.name}</h3>
-        {sound.type === 'Background Music' && (
-            <div className="flex flex-wrap gap-1 mt-1">
-                {[sound.category_tag, sound.mood_tag, sound.location_tag].filter(Boolean).map((tag) => (
-                    <span key={tag} className="text-xs bg-black bg-opacity-20 px-1.5 py-0.5 rounded-full">{tag}</span>
-                ))}
-            </div>
+      <div className="absolute top-2 left-2">
+        {sound.favorite && (
+          <div className="text-yellow-400">
+            <Star size={14} fill="currentColor" />
+          </div>
         )}
       </div>
 
-      {sound.type === 'Ambience' && sound.loop && (
-          <div className="absolute bottom-2 right-2 text-xs bg-black bg-opacity-20 text-white px-2 py-0.5 rounded-full">
-              Loop
-          </div>
-      )}
+      <div className="absolute top-2 right-2 flex items-center gap-2">
+        {sound.type === 'Ambience' && sound.loop && (
+            <div className="text-white opacity-70" title="Looping">
+                <Repeat size={14} />
+            </div>
+        )}
+        {isPlaying && <PulsingBars />}
+      </div>
+
+      <div className="text-white">
+        {sound.type === 'Background Music' && bgmTags.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1 mb-1">
+                {bgmTags.map((tag) => (
+                    <span key={tag} className="text-xs bg-black bg-opacity-20 text-white px-1.5 py-0.5 rounded-full">{tag}</span>
+                ))}
+            </div>
+        )}
+        <h3 className="font-bold text-sm break-words">{sound.name}</h3>
+      </div>
     </div>
   );
 };

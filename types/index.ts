@@ -1,9 +1,11 @@
 
-export type SoundType = 'Background Music' | 'Ambience' | 'Sound Effect';
+export type SoundType = 'Background Music' | 'Ambience' | 'One-shots';
+export type AtmosphereLevel = 'Relaxed' | 'Neutral' | 'Combat';
 
 export interface Scene {
   id: string;
   name: string;
+  atmosphere?: AtmosphereLevel[] | null;
 }
 
 export interface Sound {
@@ -15,12 +17,20 @@ export interface Sound {
   type: SoundType;
   volume: number;
   loop: boolean;
+  favorite: boolean;
   include_in_all_scenes: boolean;
   category_tag: string | null;
   mood_tag: string | null;
   location_tag: string | null;
+  type_tag: string | null;
   scenes?: Scene[];
   created_at: string;
+}
+
+export interface SoundSceneJoin {
+    sound_id: string;
+    scene_id: string;
+    atmosphere: AtmosphereLevel[] | null;
 }
 
 // Fix: Add SoundboardPreset interface to resolve missing type errors.

@@ -1,6 +1,5 @@
-
 import { supabase } from './supabase';
-import { Sound, Scene } from '../types';
+import { Sound, Scene, SoundSceneJoin, AtmosphereLevel, SoundType } from '../types';
 import { v4 as uuidv4 } from 'https://aistudiocdn.com/uuid@^13.0.0';
 
 // --- Scene Service Functions ---
@@ -14,7 +13,7 @@ export const getScenes = async (userId: string): Promise<Scene[]> => {
     return data || [];
 };
 
-export const getOrCreateScenes = async (userId: string, sceneNames: string[]): Promise<string[]> => {
+export const getOrCreateScenes = async (userId: string, sceneNames: string[]): Promise<Scene[]> => {
     if (sceneNames.length === 0) return [];
     
     const trimmedNames = sceneNames.map(name => name.trim()).filter(Boolean);
@@ -32,27 +31,26 @@ export const getOrCreateScenes = async (userId: string, sceneNames: string[]): P
     }
 
     const existingNames = new Set(existingScenes.map(s => s.name));
-    const sceneIds = existingScenes.map(s => s.id);
-
     const newSceneNames = trimmedNames.filter(name => !existingNames.has(name));
+    let newScenes: Scene[] = [];
 
     if (newSceneNames.length > 0) {
-        const { data: newScenes, error: insertError } = await supabase
+        const { data, error: insertError } = await supabase
             .from('scenes')
             .insert(newSceneNames.map(name => ({ name, user_id: userId })))
-            .select('id');
+            .select('id, name');
         
         if (insertError) {
             console.error('Error creating new scenes:', insertError.message);
-        } else if (newScenes) {
-            sceneIds.push(...newScenes.map(s => s.id));
+        } else if (data) {
+            newScenes = data;
         }
     }
     
-    return sceneIds;
+    return [...existingScenes, ...newScenes];
 };
 
-export const getSoundSceneJoins = async (userId: string): Promise<Array<{sound_id: string, scene_id: string}>> => {
+export const getSoundSceneJoins = async (userId: string): Promise<SoundSceneJoin[]> => {
     const { data: userSounds, error: soundsError } = await supabase
         .from('sound_files')
         .select('id')
@@ -70,7 +68,7 @@ export const getSoundSceneJoins = async (userId: string): Promise<Array<{sound_i
 
     const { data, error } = await supabase
         .from('sound_scene_join')
-        .select('sound_id, scene_id')
+        .select('sound_id, scene_id, atmosphere')
         .in('sound_id', soundIds);
     
     if (error) {
@@ -80,7 +78,7 @@ export const getSoundSceneJoins = async (userId: string): Promise<Array<{sound_i
     return data || [];
 }
 
-export const updateSoundScenes = async (soundId: string, sceneIds: string[]): Promise<void> => {
+export const updateSoundScenes = async (soundId: string, sceneData: Array<{ scene_id: string; atmosphere: AtmosphereLevel[] | null; }>): Promise<void> => {
     const { error: deleteError } = await supabase
         .from('sound_scene_join')
         .delete()
@@ -91,8 +89,12 @@ export const updateSoundScenes = async (soundId: string, sceneIds: string[]): Pr
         return;
     }
 
-    if (sceneIds.length > 0) {
-        const relations = sceneIds.map(scene_id => ({ sound_id: soundId, scene_id }));
+    if (sceneData.length > 0) {
+        const relations = sceneData.map(data => ({
+            sound_id: soundId,
+            scene_id: data.scene_id,
+            atmosphere: data.atmosphere
+        }));
         const { error: insertError } = await supabase
             .from('sound_scene_join')
             .insert(relations);
@@ -179,16 +181,17 @@ export const getSoundFiles = async (userId: string): Promise<Sound[]> => {
   
   const soundsWithUrls = data.map(sound => {
     const { data: { publicUrl } } = supabase.storage.from('sound-files').getPublicUrl(sound.file_path);
-    return { ...sound, publicURL: publicUrl };
+    const type = sound.type === 'Sound Effect' ? 'One-shots' : sound.type;
+    return { ...sound, publicURL: publicUrl, type };
   });
 
-  return soundsWithUrls;
+  return soundsWithUrls as Sound[];
 };
 
 export const uploadSoundFile = async (
   userId: string,
   file: File,
-  details: Omit<Sound, 'id' | 'user_id' | 'file_path' | 'publicURL' | 'created_at' | 'scenes'> & { sceneNames?: string[] }
+  details: Omit<Sound, 'id' | 'user_id' | 'file_path' | 'publicURL' | 'created_at' | 'scenes' | 'atmosphere' | 'favorite'> & { sceneNames?: string[], sceneAtmospheres?: Record<string, AtmosphereLevel[] | null> }
 ): Promise<Sound | null> => {
   const fileExtension = file.name.split('.').pop();
   const fileName = `${uuidv4()}.${fileExtension}`;
@@ -203,12 +206,13 @@ export const uploadSoundFile = async (
     return null;
   }
 
-  const { sceneNames, ...soundDetails } = details;
+  const { sceneNames, sceneAtmospheres, ...soundDetails } = details;
 
   const newSoundData = {
     ...soundDetails,
     user_id: userId,
     file_path: filePath,
+    type: details.type === 'One-shots' ? 'Sound Effect' : details.type,
   };
 
   const { data, error: dbError } = await supabase
@@ -223,40 +227,83 @@ export const uploadSoundFile = async (
     return null;
   }
   
-  if (sceneNames && sceneNames.length > 0) {
-      const sceneIds = await getOrCreateScenes(userId, sceneNames);
-      await updateSoundScenes(data.id, sceneIds);
+  if (details.include_in_all_scenes) {
+    const { data: allUserScenes, error: scenesError } = await supabase.from('scenes').select('id, name').eq('user_id', userId);
+    if (scenesError) {
+        console.error('Error fetching all scenes for include_in_all_scenes:', scenesError.message);
+    } else if (allUserScenes && allUserScenes.length > 0) {
+        const sceneData = allUserScenes.map(scene => ({
+            scene_id: scene.id,
+            atmosphere: sceneAtmospheres?.[scene.name] || null
+        }));
+        await updateSoundScenes(data.id, sceneData);
+    }
+  } else if (sceneNames && sceneNames.length > 0) {
+      const scenes = await getOrCreateScenes(userId, sceneNames);
+      const sceneData = scenes.map(scene => ({
+          scene_id: scene.id,
+          atmosphere: sceneAtmospheres?.[scene.name] || null
+      }));
+      await updateSoundScenes(data.id, sceneData);
   }
   
   const { data: { publicUrl } } = supabase.storage.from('sound-files').getPublicUrl(data.file_path);
-  return { ...data, publicURL: publicUrl, scenes: [] };
+  const type = data.type === 'Sound Effect' ? 'One-shots' : data.type;
+  return { ...data, publicURL: publicUrl, scenes: [], type };
 };
 
 export const updateSoundFile = async (
   id: string,
-  updates: Partial<Omit<Sound, 'scenes'>> & { sceneNames?: string[] }
+  updates: Partial<Omit<Sound, 'scenes' | 'favorite'>> & { sceneNames?: string[], sceneAtmospheres?: Record<string, AtmosphereLevel[] | null> }
 ): Promise<Sound | null> => {
-  const { sceneNames, ...soundUpdates } = updates;
+  const { sceneNames, sceneAtmospheres, ...soundUpdates } = updates as any;
+  if (soundUpdates.type === 'One-shots') {
+    soundUpdates.type = 'Sound Effect';
+  }
   
-  const { data, error } = await supabase
+  const { data: updatedDataArray, error } = await supabase
     .from('sound_files')
     .update(soundUpdates)
     .eq('id', id)
-    .select()
-    .single();
+    .select();
 
   if (error) {
     console.error('Error updating sound file:', error.message);
     return null;
   }
 
-  if (sceneNames !== undefined) {
-      const sceneIds = await getOrCreateScenes(data.user_id, sceneNames);
-      await updateSoundScenes(data.id, sceneIds);
+  if (!updatedDataArray || updatedDataArray.length === 0) {
+    console.error('Failed to update sound file. The record might not exist, or RLS policy may have prevented the update.');
+    return null;
+  }
+
+  const data = updatedDataArray[0];
+
+  if (sceneNames !== undefined && sceneAtmospheres !== undefined) {
+      if (updates.include_in_all_scenes) {
+        const { data: allUserScenes, error: scenesError } = await supabase.from('scenes').select('id, name').eq('user_id', data.user_id);
+        if (scenesError) {
+            console.error('Error fetching all scenes for include_in_all_scenes update:', scenesError.message);
+        } else if (allUserScenes) {
+            const sceneData = allUserScenes.map(scene => ({
+                scene_id: scene.id,
+                atmosphere: sceneAtmospheres[scene.name] || null
+            }));
+            await updateSoundScenes(data.id, sceneData);
+        }
+      } else {
+        const scenes = await getOrCreateScenes(data.user_id, sceneNames);
+        const sceneData = scenes.map(scene => ({
+            scene_id: scene.id,
+            atmosphere: sceneAtmospheres[scene.name] || null
+        }));
+        await updateSoundScenes(data.id, sceneData);
+      }
   }
   
   const { data: { publicUrl } } = supabase.storage.from('sound-files').getPublicUrl(data.file_path);
-  return { ...data, publicURL: publicUrl, scenes: [] };
+  const type = data.type === 'Sound Effect' ? 'One-shots' : data.type;
+  return { ...data, publicURL: publicUrl, scenes: [], type };
 };
 
 export const deleteSoundFile = async (sound: Sound): Promise<boolean> => {

@@ -1,25 +1,50 @@
 import React, { useState } from 'react';
-import { Sound, SoundType } from '../types';
+import { Sound, SoundType, AtmosphereLevel, Scene } from '../types';
 import { X } from 'lucide-react';
 
 interface AddSoundModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddSound: (file: File, details: Omit<Sound, 'id' | 'user_id' | 'file_path' | 'publicURL' | 'created_at' | 'scenes'> & { sceneNames: string[] }) => Promise<void>;
+  onAddSound: (file: File, details: Omit<Sound, 'id' | 'user_id' | 'file_path' | 'publicURL' | 'created_at' | 'scenes' | 'atmosphere' | 'favorite'> & { sceneNames: string[], sceneAtmospheres: Record<string, AtmosphereLevel[] | null>, favorite: boolean }) => Promise<void>;
+  allScenes: Scene[];
 }
 
-export const AddSoundModal: React.FC<AddSoundModalProps> = ({ isOpen, onClose, onAddSound }) => {
+const atmosphereLevels: AtmosphereLevel[] = ['Relaxed', 'Neutral', 'Combat'];
+
+export const AddSoundModal: React.FC<AddSoundModalProps> = ({ isOpen, onClose, onAddSound, allScenes }) => {
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState('');
-  const [type, setType] = useState<SoundType>('Sound Effect');
+  const [type, setType] = useState<SoundType>('One-shots');
   const [volume, setVolume] = useState(0.75);
   const [loop, setLoop] = useState(false);
+  const [favorite, setFavorite] = useState(false);
   const [includeInAllScenes, setIncludeInAllScenes] = useState(false);
   const [categoryTag, setCategoryTag] = useState('');
   const [moodTag, setMoodTag] = useState('');
   const [locationTag, setLocationTag] = useState('');
+  const [typeTag, setTypeTag] = useState('');
   const [scenes, setScenes] = useState('');
+  const [atmosphere, setAtmosphere] = useState<AtmosphereLevel[]>([]);
+  const [sceneAtmospheres, setSceneAtmospheres] = useState<Record<string, AtmosphereLevel[]>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleAtmosphereChange = (level: AtmosphereLevel) => {
+    setAtmosphere(prev => 
+      prev.includes(level) 
+        ? prev.filter(item => item !== level)
+        : [...prev, level]
+    );
+  };
+
+  const handleSceneAtmosphereChange = (sceneName: string, level: AtmosphereLevel) => {
+    setSceneAtmospheres(prev => {
+      const currentLevels = prev[sceneName] || [];
+      const newLevels = currentLevels.includes(level)
+        ? currentLevels.filter(l => l !== level)
+        : [...currentLevels, level];
+      return { ...prev, [sceneName]: newLevels };
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,37 +53,59 @@ export const AddSoundModal: React.FC<AddSoundModalProps> = ({ isOpen, onClose, o
       return;
     }
     setIsSubmitting(true);
+    
+    const sceneNames = includeInAllScenes ? [] : scenes.split(',').map(s => s.trim()).filter(Boolean);
+    const finalAtmospheres: Record<string, AtmosphereLevel[] | null> = {};
+
+    if (type === 'Background Music' || type === 'Ambience') {
+        if (includeInAllScenes) {
+            Object.assign(finalAtmospheres, sceneAtmospheres);
+        } else {
+            sceneNames.forEach(name => {
+                finalAtmospheres[name] = atmosphere;
+            });
+        }
+    }
+
     await onAddSound(file, { 
       name: name || file.name.replace(/\.[^/.]+$/, ""), 
       type, 
       volume, 
-      loop: type === 'Sound Effect' ? false : loop,
+      loop: type === 'One-shots' ? false : loop,
+      favorite,
       include_in_all_scenes: includeInAllScenes,
       category_tag: type === 'Background Music' ? categoryTag || null : null,
       mood_tag: type === 'Background Music' ? moodTag || null : null,
       location_tag: type === 'Background Music' ? locationTag || null : null,
-      sceneNames: includeInAllScenes ? [] : scenes.split(',').map(s => s.trim()).filter(Boolean),
+      type_tag: type === 'One-shots' ? typeTag || null : null,
+      sceneNames: sceneNames,
+      sceneAtmospheres: finalAtmospheres,
     });
+
     setIsSubmitting(false);
     onClose();
     // Reset form
     setFile(null);
     setName('');
-    setType('Sound Effect');
+    setType('One-shots');
     setVolume(0.75);
     setLoop(false);
+    setFavorite(false);
     setIncludeInAllScenes(false);
     setCategoryTag('');
     setMoodTag('');
     setLocationTag('');
+    setTypeTag('');
     setScenes('');
+    setAtmosphere([]);
+    setSceneAtmospheres({});
   };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50">
-      <div className="bg-stone-800 rounded-lg p-8 w-full max-w-md m-4">
+      <div className="bg-stone-800 rounded-lg p-8 w-full max-w-md m-4 overflow-y-auto max-h-screen">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-3xl font-medieval font-bold text-white">Add New Sound</h2>
           <button onClick={onClose} className="text-stone-400 hover:text-white"><X size={24} /></button>
@@ -86,21 +133,74 @@ export const AddSoundModal: React.FC<AddSoundModalProps> = ({ isOpen, onClose, o
             <select id="type" value={type} onChange={(e) => setType(e.target.value as SoundType)} className="mt-1 block w-full bg-stone-700 border border-stone-600 rounded-md p-2 text-white">
               <option>Background Music</option>
               <option>Ambience</option>
-              <option>Sound Effect</option>
+              <option>One-shots</option>
             </select>
           </div>
-          {type !== 'Sound Effect' && (
+          <div className="flex items-center gap-x-6">
+            {type !== 'One-shots' && (
+              <div className="flex items-center">
+                <input type="checkbox" id="loop" checked={loop} onChange={(e) => setLoop(e.target.checked)} className="h-4 w-4 rounded accent-amber-500" />
+                <label htmlFor="loop" className="ml-2 text-sm text-stone-300">Loop</label>
+              </div>
+            )}
             <div className="flex items-center">
-              <input type="checkbox" id="loop" checked={loop} onChange={(e) => setLoop(e.target.checked)} className="h-4 w-4 rounded accent-amber-500" />
-              <label htmlFor="loop" className="ml-2 text-sm text-stone-300">Loop</label>
+              <input type="checkbox" id="favorite" checked={favorite} onChange={(e) => setFavorite(e.target.checked)} className="h-4 w-4 rounded accent-amber-500" />
+              <label htmlFor="favorite" className="ml-2 text-sm text-stone-300">Favorite</label>
             </div>
+          </div>
+           {(type === 'Background Music' || type === 'Ambience') && !includeInAllScenes && scenes.trim().length > 0 && (
+              <div>
+                  <label className="block text-sm font-medium text-stone-300">Atmosphere Levels (for new scenes)</label>
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+                      {atmosphereLevels.map(level => (
+                          <label key={level} className="flex items-center text-sm text-stone-300">
+                              <input 
+                                  type="checkbox" 
+                                  checked={atmosphere.includes(level)} 
+                                  onChange={() => handleAtmosphereChange(level)}
+                                  className="h-4 w-4 rounded accent-amber-500"
+                              />
+                              <span className="ml-2">{level}</span>
+                          </label>
+                      ))}
+                  </div>
+              </div>
+          )}
+          {(type === 'Background Music' || type === 'Ambience') && includeInAllScenes && allScenes.length > 0 && (
+             <div className="space-y-3 p-3 bg-stone-900/50 rounded-md max-h-48 overflow-y-auto">
+                  <label className="block text-sm font-medium text-stone-300">Atmosphere Levels (Per Scene)</label>
+                  {allScenes.map(scene => (
+                      <div key={scene.id}>
+                          <p className="font-semibold text-sm text-amber-400">{scene.name}</p>
+                          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                              {atmosphereLevels.map(level => (
+                                  <label key={level} className="flex items-center text-sm text-stone-300">
+                                      <input 
+                                          type="checkbox" 
+                                          checked={(sceneAtmospheres[scene.name] || []).includes(level)} 
+                                          onChange={() => handleSceneAtmosphereChange(scene.name, level)}
+                                          className="h-4 w-4 rounded accent-amber-500"
+                                      />
+                                      <span className="ml-1.5">{level}</span>
+                                  </label>
+                              ))}
+                          </div>
+                      </div>
+                  ))}
+              </div>
           )}
           {type === 'Background Music' && (
-             <div className="space-y-2">
+             <div className="space-y-2 pt-2">
+                <p className="text-sm font-medium text-stone-300">Optional Tags for Filtering</p>
                 <input type="text" value={categoryTag} onChange={e => setCategoryTag(e.target.value)} placeholder="Category Tag (e.g., Combat)" className="block w-full bg-stone-700 border border-stone-600 rounded-md p-2 text-white"/>
                 <input type="text" value={moodTag} onChange={e => setMoodTag(e.target.value)} placeholder="Mood Tag (e.g., Tense)" className="block w-full bg-stone-700 border border-stone-600 rounded-md p-2 text-white"/>
                 <input type="text" value={locationTag} onChange={e => setLocationTag(e.target.value)} placeholder="Location Tag (e.g., Forest)" className="block w-full bg-stone-700 border border-stone-600 rounded-md p-2 text-white"/>
              </div>
+          )}
+          {type === 'One-shots' && (
+            <div className="space-y-2">
+              <input type="text" value={typeTag} onChange={e => setTypeTag(e.target.value)} placeholder="Type Tag (e.g., Sword, Magic)" className="block w-full bg-stone-700 border border-stone-600 rounded-md p-2 text-white"/>
+            </div>
           )}
           <div>
             <label htmlFor="volume" className="block text-sm font-medium text-stone-300">Default Volume: {Math.round(volume * 100)}%</label>

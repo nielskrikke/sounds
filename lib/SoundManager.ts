@@ -1,21 +1,24 @@
 
-import { Sound, PlayingSound, SoundType } from '../types';
+import { Sound, PlayingSound } from '../types';
+
+type SoundManagerState = {
+    playingStates: Record<string, boolean>;
+    audioContextState: AudioContextState;
+};
 
 export class SoundManager {
     private audioContext: AudioContext;
     private audioBuffers: Map<string, AudioBuffer> = new Map();
-    private activeBGM: PlayingSound | null = null;
-    private lastBGMSound: Sound | null = null;
-    private isBGMPlaying: boolean = false;
-    private activeAMB: PlayingSound | null = null;
+    private activeBGMs: Map<string, PlayingSound> = new Map();
+    private activeAMBs: Map<string, PlayingSound> = new Map();
     private activeSEs: Map<string, PlayingSound> = new Map();
     private masterBGMVolume: number = 0.5;
-    private readonly fadeTime: number = 4;
+    private readonly fadeTime: number = 2.5;
     private readonly rampTime: number = 0.1;
     public airPlayAudioElement: HTMLAudioElement;
-    private onStateChange: (playingStates: Record<string, boolean>) => void;
+    private onStateChange: (state: SoundManagerState) => void;
 
-    constructor(onStateChangeCallback: (playingStates: Record<string, boolean>) => void) {
+    constructor(onStateChangeCallback: (state: SoundManagerState) => void) {
         this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
         this.airPlayAudioElement = document.createElement('audio');
         this.airPlayAudioElement.id = 'airplay-audio';
@@ -23,14 +26,21 @@ export class SoundManager {
         this.airPlayAudioElement.muted = true;
         document.body.appendChild(this.airPlayAudioElement);
         this.onStateChange = onStateChangeCallback;
+        
+        this.audioContext.onstatechange = () => {
+             this.updatePlayingStates();
+        };
     }
 
     private updatePlayingStates() {
         const states: Record<string, boolean> = {};
-        if (this.activeBGM) states[this.activeBGM.sound.id] = this.isBGMPlaying;
-        if (this.activeAMB) states[this.activeAMB.sound.id] = true;
+        this.activeBGMs.forEach(ps => states[ps.sound.id] = true);
+        this.activeAMBs.forEach(ps => states[ps.sound.id] = true);
         this.activeSEs.forEach(ps => states[ps.sound.id] = true);
-        this.onStateChange(states);
+        this.onStateChange({
+            playingStates: states,
+            audioContextState: this.audioContext.state,
+        });
     }
     
     public async loadSound(sound: Sound): Promise<void> {
@@ -68,64 +78,60 @@ export class SoundManager {
             case 'Ambience':
                 this.playAmbience(sound, buffer);
                 break;
-            case 'Sound Effect':
+            case 'One-shots':
                 this.playSoundEffect(sound, buffer);
                 break;
         }
-        this.updatePlayingStates();
     }
     
     public stopSound(sound: Sound) {
         switch (sound.type) {
             case 'Background Music':
-                if (this.activeBGM?.sound.id === sound.id) this.fadeOutBGM();
+                this.stopBGM(sound);
                 break;
             case 'Ambience':
-                 if (this.activeAMB?.sound.id === sound.id) this.stopAmbience();
+                 this.stopAmbience(sound);
                 break;
-            case 'Sound Effect':
-                if (this.activeSEs.has(sound.id)) this.stopSoundEffect(sound);
+            case 'One-shots':
+                this.stopSoundEffect(sound);
                 break;
         }
-         this.updatePlayingStates();
     }
 
     private playBGM(sound: Sound, buffer: AudioBuffer) {
-        if (this.activeBGM?.sound.id === sound.id) {
-            this.toggleBGMPlayPause();
-            return;
-        }
+        if (this.activeBGMs.has(sound.id)) return;
+    
+        // Crossfade: Stop any other BGMs that are currently playing.
+        const otherBGMs = Array.from(this.activeBGMs.values()).filter(ps => ps.sound.id !== sound.id);
+        otherBGMs.forEach(ps => this.stopBGM(ps.sound));
         
-        const oldBGM = this.activeBGM;
+        const newBGM = this.createPlayingSound(sound, buffer, sound.loop);
+        this.activeBGMs.set(sound.id, newBGM);
         
-        if (oldBGM) {
-            this.performFadeOut(oldBGM);
-        }
-        
-        this.lastBGMSound = sound;
-        const newBGM = this.createPlayingSound(sound, buffer, true);
-        this.activeBGM = newBGM;
-        
-        // Start and fade in the new BGM
-        this.isBGMPlaying = true;
         newBGM.source.start(0);
         newBGM.gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
         newBGM.gainNode.gain.linearRampToValueAtTime(this.masterBGMVolume * newBGM.sound.volume, this.audioContext.currentTime + this.fadeTime);
+        this.updatePlayingStates();
         
+        // Always update AirPlay to the new track.
         this.airPlayAudioElement.src = sound.publicURL || '';
         this.airPlayAudioElement.volume = this.masterBGMVolume * newBGM.sound.volume;
         this.airPlayAudioElement.play().catch(e => console.error("AirPlay audio failed to play:", e));
     }
 
-    private fadeOutBGM(onComplete?: () => void) {
-        if (!this.activeBGM) return;
-        const oldBGM = this.activeBGM;
-        this.activeBGM = null;
+    private stopBGM(sound: Sound) {
+        const playingSound = this.activeBGMs.get(sound.id);
+        if (!playingSound) return;
         
-        this.performFadeOut(oldBGM, onComplete);
-        
-        this.airPlayAudioElement.pause();
-        this.airPlayAudioElement.src = '';
+        this.performFadeOut(playingSound, () => {
+            this.activeBGMs.delete(sound.id);
+            this.updatePlayingStates();
+
+            if (this.activeBGMs.size === 0) {
+                 this.airPlayAudioElement.pause();
+                 this.airPlayAudioElement.src = '';
+            }
+        });
     }
 
     private performFadeOut(playingSound: PlayingSound, onComplete?: () => void) {
@@ -137,61 +143,35 @@ export class SoundManager {
             if (onComplete) onComplete();
         }, this.fadeTime * 1000);
     }
-
-    public toggleBGMPlayPause() {
-        if (!this.lastBGMSound) return;
-
-        if (!this.activeBGM) { // Resuming from paused state
-            const buffer = this.audioBuffers.get(this.lastBGMSound.id);
-            if (!buffer) {
-                 this.loadSound(this.lastBGMSound).then(() => this.toggleBGMPlayPause());
-                 return;
-            }
-            const newBGM = this.createPlayingSound(this.lastBGMSound, buffer, true);
-            this.activeBGM = newBGM;
-            this.isBGMPlaying = true;
-            newBGM.source.start(0);
-            newBGM.gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-            newBGM.gainNode.gain.linearRampToValueAtTime(this.masterBGMVolume * newBGM.sound.volume, this.audioContext.currentTime + this.fadeTime);
-            
-            this.airPlayAudioElement.src = this.lastBGMSound.publicURL || '';
-            this.airPlayAudioElement.volume = this.masterBGMVolume * newBGM.sound.volume;
-            this.airPlayAudioElement.play().catch(e => console.error("AirPlay audio failed to play:", e));
-
-        } else { // Pausing
-            this.isBGMPlaying = false;
-            this.fadeOutBGM();
+    
+    public toggleGlobalPlayPause() {
+        if (this.audioContext.state === 'running') {
+            this.audioContext.suspend();
+        } else if (this.audioContext.state === 'suspended') {
+            this.audioContext.resume();
         }
-        this.updatePlayingStates();
     }
     
     private playAmbience(sound: Sound, buffer: AudioBuffer) {
-        // If we're clicking the sound that's already playing, stop it.
-        if (this.activeAMB?.sound.id === sound.id) {
-            this.stopAmbience();
-            return;
-        }
+        if (this.activeAMBs.has(sound.id)) return;
 
-        // If another ambience is playing, stop it first.
-        if (this.activeAMB) {
-            this.stopAmbience();
-        }
-
-        // Play the new sound.
         const playingSound = this.createPlayingSound(sound, buffer, sound.loop);
-        this.activeAMB = playingSound;
+        this.activeAMBs.set(sound.id, playingSound);
         playingSound.source.start(0);
         playingSound.gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
         playingSound.gainNode.gain.linearRampToValueAtTime(sound.volume, this.audioContext.currentTime + this.rampTime);
+        this.updatePlayingStates();
     }
     
-    private stopAmbience() {
-        if (!this.activeAMB) return;
-        const oldAMB = this.activeAMB;
-        this.activeAMB = null;
+    private stopAmbience(sound: Sound) {
+        const oldAMB = this.activeAMBs.get(sound.id);
+        if (!oldAMB) return;
+        
+        this.activeAMBs.delete(sound.id);
         oldAMB.gainNode.gain.cancelScheduledValues(this.audioContext.currentTime);
         oldAMB.gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + this.rampTime);
         setTimeout(() => oldAMB.source.stop(), this.rampTime * 1000);
+        this.updatePlayingStates();
     }
     
     private playSoundEffect(sound: Sound, buffer: AudioBuffer) {
@@ -211,32 +191,37 @@ export class SoundManager {
                 this.updatePlayingStates();
             }
         };
+        this.updatePlayingStates();
     }
 
     private stopSoundEffect(sound: Sound) {
         const playingSound = this.activeSEs.get(sound.id);
         if (playingSound) {
-            playingSound.source.stop();
-            this.activeSEs.delete(sound.id);
+            playingSound.source.stop(); // onended will handle removal
         }
     }
 
     public stopAllSounds() {
-        if (this.activeBGM) this.fadeOutBGM();
-        if (this.activeAMB) this.stopAmbience();
+        this.activeBGMs.forEach(ps => this.stopBGM(ps.sound));
+        this.activeAMBs.forEach(ps => this.stopAmbience(ps.sound));
         this.activeSEs.forEach(ps => ps.source.stop());
         this.activeSEs.clear();
-        this.isBGMPlaying = false;
-        this.lastBGMSound = null;
         this.updatePlayingStates();
     }
 
     public setMasterBGMVolume(volume: number) {
         this.masterBGMVolume = volume;
-        if (this.activeBGM && this.isBGMPlaying) {
-            const targetVolume = this.masterBGMVolume * this.activeBGM.sound.volume;
-            this.activeBGM.gainNode.gain.linearRampToValueAtTime(targetVolume, this.audioContext.currentTime + this.rampTime);
-            this.airPlayAudioElement.volume = targetVolume;
+        this.activeBGMs.forEach(playingSound => {
+            const targetVolume = this.masterBGMVolume * playingSound.sound.volume;
+            playingSound.gainNode.gain.linearRampToValueAtTime(targetVolume, this.audioContext.currentTime + this.rampTime);
+        });
+        
+        if (this.activeBGMs.size > 0) {
+            // Adjust volume of the AirPlay element, assuming it's playing the first BGM.
+            const firstBgm = this.activeBGMs.values().next().value;
+            if (firstBgm) {
+                this.airPlayAudioElement.volume = this.masterBGMVolume * firstBgm.sound.volume;
+            }
         }
     }
 
@@ -251,8 +236,8 @@ export class SoundManager {
     }
     
     public isPlaying(soundId: string): boolean {
-        return (this.activeBGM?.sound.id === soundId && this.isBGMPlaying) ||
-               this.activeAMB?.sound.id === soundId ||
+        return this.activeBGMs.has(soundId) ||
+               this.activeAMBs.has(soundId) ||
                this.activeSEs.has(soundId);
     }
 }

@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
-import { Sound, SoundType, Scene } from './types';
+import { Sound, SoundType, Scene, AtmosphereLevel } from './types';
 import { SoundManager } from './lib/SoundManager';
 import { signInWithUsername, signOut, getUser } from './lib/authService';
 import { 
@@ -14,11 +13,12 @@ import {
     deleteOrphanedScenes
 } from './lib/soundFileService';
 import { SoundTile } from './components/SoundTile';
-import { SceneHeader } from './components/PresetHeader'; // Using the same filename for simplicity
+import { SceneHeader } from './components/PresetHeader';
 import { AddSoundModal } from './components/AddSoundModal';
 import { EditSoundModal } from './components/EditSoundModal';
-import { PlusCircle } from 'lucide-react';
+import { SoundManagerModal } from './components/SoundManagerModal';
 import { supabase } from './lib/supabase';
+import { AtmosphereFooter } from './components/AtmosphereFooter';
 
 const App: React.FC = () => {
     const [user, setUser] = useState<User | null>(null);
@@ -30,14 +30,53 @@ const App: React.FC = () => {
     const [scenes, setScenes] = useState<Scene[]>([]);
     const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
     const [activeMoodFilter, setActiveMoodFilter] = useState<string | null>(null);
+    const [activeSETypeFilter, setActiveSETypeFilter] = useState<string | null>(null);
+    const [activeAtmosphere, setActiveAtmosphere] = useState<AtmosphereLevel | null>(null);
     
     const [playingStates, setPlayingStates] = useState<Record<string, boolean>>({});
+    const [audioContextState, setAudioContextState] = useState<AudioContextState>('suspended');
     const [masterBGMVolume, setMasterBGMVolume] = useState(0.5);
     const soundManagerRef = useRef<SoundManager | null>(null);
 
     const [isAddModalOpen, setAddModalOpen] = useState(false);
     const [isEditModalOpen, setEditModalOpen] = useState(false);
     const [soundToEdit, setSoundToEdit] = useState<Sound | null>(null);
+    const [isSoundManagerModalOpen, setSoundManagerModalOpen] = useState(false);
+
+    const fetchData = async (userId: string) => {
+        setIsLoading(true);
+
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        const favoriteSoundIds = new Set<string>(currentUser?.user_metadata?.favorite_sounds || []);
+
+        const [fetchedSounds, fetchedScenes, fetchedJoins] = await Promise.all([
+            getSoundFiles(userId),
+            getScenes(userId),
+            getSoundSceneJoins(userId),
+        ]);
+
+        const scenesById = new Map(fetchedScenes.map(s => [s.id, s.name]));
+        const soundsWithScenes = fetchedSounds.map(sound => {
+            const soundScenes = fetchedJoins
+                .filter(j => j.sound_id === sound.id)
+                .map(j => {
+                    const sceneName = scenesById.get(j.scene_id);
+                    return sceneName ? { id: j.scene_id, name: sceneName, atmosphere: j.atmosphere } as Scene : undefined;
+                })
+                .filter((s): s is Scene => s !== undefined);
+
+            return { 
+                ...sound, 
+                scenes: soundScenes,
+                favorite: favoriteSoundIds.has(sound.id) 
+            };
+        });
+
+        setLibrarySounds(soundsWithScenes);
+        setScenes(fetchedScenes.sort((a,b) => a.name.localeCompare(b.name)));
+        soundManagerRef.current?.loadSounds(soundsWithScenes);
+        setIsLoading(false);
+    };
 
     // Authentication and data fetching
     useEffect(() => {
@@ -56,8 +95,9 @@ const App: React.FC = () => {
         return () => subscription.unsubscribe();
     }, []);
 
-    const onStateChange = useCallback((newStates: Record<string, boolean>) => {
-        setPlayingStates(newStates);
+    const onStateChange = useCallback((newState: { playingStates: Record<string, boolean>, audioContextState: AudioContextState }) => {
+        setPlayingStates(newState.playingStates);
+        setAudioContextState(newState.audioContextState);
     }, []);
 
     useEffect(() => {
@@ -84,31 +124,17 @@ const App: React.FC = () => {
             ));
         }
         setActiveMoodFilter(null);
+        setActiveSETypeFilter(null);
+        
+        if(activeAtmosphere && soundManagerRef.current) {
+            librarySounds.forEach(sound => {
+                if((sound.type === "Background Music" || sound.type === "Ambience") && playingStates[sound.id]) {
+                    soundManagerRef.current?.stopSound(sound);
+                }
+            })
+        }
+        setActiveAtmosphere(null); // Reset atmosphere when scene changes
     }, [activeSceneId, librarySounds]);
-
-
-    const fetchData = async (userId: string) => {
-        setIsLoading(true);
-        const [fetchedSounds, fetchedScenes, fetchedJoins] = await Promise.all([
-            getSoundFiles(userId),
-            getScenes(userId),
-            getSoundSceneJoins(userId),
-        ]);
-
-        const scenesById = new Map(fetchedScenes.map(s => [s.id, s]));
-        const soundsWithScenes = fetchedSounds.map(sound => {
-            const soundScenes = fetchedJoins
-                .filter(j => j.sound_id === sound.id)
-                .map(j => scenesById.get(j.scene_id))
-                .filter((s): s is Scene => s !== undefined);
-            return { ...sound, scenes: soundScenes };
-        });
-
-        setLibrarySounds(soundsWithScenes);
-        setScenes(fetchedScenes.sort((a,b) => a.name.localeCompare(b.name)));
-        soundManagerRef.current?.loadSounds(soundsWithScenes);
-        setIsLoading(false);
-    };
 
     // Handlers
     const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -128,28 +154,93 @@ const App: React.FC = () => {
 
     const handlePlaySound = (sound: Sound) => soundManagerRef.current?.playSound(sound);
     const handleStopSound = (sound: Sound) => soundManagerRef.current?.stopSound(sound);
-    const handleToggleBGM = () => soundManagerRef.current?.toggleBGMPlayPause();
+    const handleToggleGlobalPlayPause = () => soundManagerRef.current?.toggleGlobalPlayPause();
+    const handleStopAllSounds = () => {
+        setActiveAtmosphere(null);
+        soundManagerRef.current?.stopAllSounds();
+    }
     
     const handleBGMVolumeChange = (volume: number) => {
         setMasterBGMVolume(volume);
         soundManagerRef.current?.setMasterBGMVolume(volume);
     };
 
-    const handleAddSound = async (file: File, details: Omit<Sound, 'id' | 'user_id' | 'file_path' | 'publicURL' | 'created_at' | 'scenes'> & { sceneNames: string[] }) => {
+    const handleSelectAtmosphere = (atmosphere: AtmosphereLevel) => {
+        if (!soundManagerRef.current) return;
+
+        // Atmospheres only work when a specific scene is selected.
+        if (!activeSceneId) {
+            alert("Please select a specific scene to activate an atmosphere.");
+            return;
+        }
+
+        const newAtmosphere = atmosphere === activeAtmosphere ? null : atmosphere;
+        setActiveAtmosphere(newAtmosphere);
+
+        const contextSounds = sounds.filter(s => s.type === 'Background Music' || s.type === 'Ambience');
+
+        contextSounds.forEach(sound => {
+            const isPlaying = playingStates[sound.id];
+            const sceneInfo = sound.scenes?.find(s => s.id === activeSceneId);
+            const shouldBePlaying = newAtmosphere && sceneInfo?.atmosphere?.includes(newAtmosphere);
+
+            if (isPlaying && !shouldBePlaying) {
+                soundManagerRef.current?.stopSound(sound);
+            } else if (!isPlaying && shouldBePlaying) {
+                soundManagerRef.current?.playSound(sound);
+            }
+        });
+    };
+
+    const handleAddSound = async (file: File, details: Omit<Sound, 'id' | 'user_id' | 'file_path' | 'publicURL' | 'created_at' | 'scenes' | 'atmosphere' | 'favorite'> & { sceneNames: string[], sceneAtmospheres: Record<string, AtmosphereLevel[] | null>, favorite: boolean }) => {
         if (!user) return;
-        const newSound = await uploadSoundFile(user.id, file, details);
+        const { favorite, ...otherDetails } = details;
+        const newSound = await uploadSoundFile(user.id, file, otherDetails);
+        
         if (newSound) {
-            await fetchData(user.id); // Refetch to get new sound with correct scene data
+            if (favorite) {
+                const { data: { user: currentUser } } = await supabase.auth.getUser();
+                const currentFavorites: string[] = currentUser?.user_metadata?.favorite_sounds || [];
+                const newFavorites = [...new Set([...currentFavorites, newSound.id])];
+                await supabase.auth.updateUser({ data: { favorite_sounds: newFavorites } });
+            }
+            await fetchData(user.id);
         }
     };
     
-    const handleUpdateSound = async (id: string, updates: Partial<Omit<Sound, 'scenes'>> & { sceneNames: string[] }) => {
+    const handleUpdateSound = async (id: string, updates: Partial<Omit<Sound, 'scenes'>> & { sceneNames: string[], sceneAtmospheres: Record<string, AtmosphereLevel[] | null> }) => {
         if (!user) return;
-        const updatedSound = await updateSoundFile(id, updates);
-        if (updatedSound) {
-            await deleteOrphanedScenes(user.id);
-            await fetchData(user.id); // Refetch to ensure all scene data is consistent
+
+        const { favorite, ...otherUpdates } = updates;
+
+        if (typeof favorite === 'boolean') {
+            const { data: { user: currentUser } } = await supabase.auth.getUser();
+            if (currentUser) {
+                const currentFavorites: string[] = currentUser.user_metadata?.favorite_sounds || [];
+                let newFavorites: string[];
+                if (favorite) {
+                    newFavorites = [...new Set([...currentFavorites, id])];
+                } else {
+                    newFavorites = currentFavorites.filter((favId: string) => favId !== id);
+                }
+
+                if (JSON.stringify(currentFavorites.sort()) !== JSON.stringify(newFavorites.sort())) {
+                    await supabase.auth.updateUser({ data: { favorite_sounds: newFavorites } });
+                }
+            }
         }
+        
+        const hasOtherUpdates = Object.keys(otherUpdates).length > 0 && 
+            (Object.keys(otherUpdates).some(k => !['sceneNames', 'sceneAtmospheres'].includes(k)) || otherUpdates.sceneNames?.length);
+
+        if(hasOtherUpdates) {
+             const updatedSound = await updateSoundFile(id, otherUpdates as any);
+             if(updatedSound) {
+                 await deleteOrphanedScenes(user.id);
+             }
+        }
+        
+        await fetchData(user.id);
     };
 
     const handleDeleteSound = async (soundToDelete: Sound) => {
@@ -197,7 +288,7 @@ const App: React.FC = () => {
     
     const renderSoundSection = (type: SoundType, title: string) => {
         let sectionSounds = sounds.filter(s => s.type === type);
-        let moodFilterUI = null;
+        let filterUI = null;
     
         if (type === 'Background Music') {
             const moods = [...new Set(
@@ -211,7 +302,7 @@ const App: React.FC = () => {
             }
     
             if (moods.length > 0) {
-                moodFilterUI = (
+                filterUI = (
                     <div className="flex items-center gap-2 flex-wrap mb-4">
                         <span className="text-sm font-semibold text-stone-400">Mood:</span>
                          <button 
@@ -232,18 +323,59 @@ const App: React.FC = () => {
                     </div>
                 );
             }
+        } else if (type === 'One-shots') {
+            const types = [...new Set(
+                librarySounds
+                    .filter(s => s.type === 'One-shots' && s.type_tag)
+                    .flatMap(s => s.type_tag!.split(',').map(t => t.trim()).filter(Boolean))
+            )].sort();
+
+            if (activeSETypeFilter) {
+                sectionSounds = sectionSounds.filter(s => 
+                    s.type_tag?.split(',').map(t => t.trim()).includes(activeSETypeFilter)
+                );
+            }
+
+            if (types.length > 0) {
+                filterUI = (
+                    <div className="flex items-center gap-2 flex-wrap mb-4">
+                        <span className="text-sm font-semibold text-stone-400">Type:</span>
+                        <button
+                            onClick={() => setActiveSETypeFilter(null)}
+                            className={`px-3 py-1 text-xs rounded-full transition-colors ${!activeSETypeFilter ? 'bg-amber-600 text-white font-bold' : 'bg-stone-700 text-stone-300 hover:bg-stone-600'}`}
+                        >
+                            All
+                        </button>
+                        {types.map(sfxType => (
+                            <button
+                                key={sfxType}
+                                onClick={() => setActiveSETypeFilter(sfxType)}
+                                className={`px-3 py-1 text-xs rounded-full transition-colors ${activeSETypeFilter === sfxType ? 'bg-amber-600 text-white font-bold' : 'bg-stone-700 text-stone-300 hover:bg-stone-600'}`}
+                            >
+                                {sfxType}
+                            </button>
+                        ))}
+                    </div>
+                );
+            }
         }
     
         const hasSoundsOfTypeInScene = sounds.some(s => s.type === type);
     
         if (!hasSoundsOfTypeInScene) {
-            return null; // Don't render the section at all if there are no sounds of this type in the current scene
+            return null;
         }
+
+        sectionSounds.sort((a, b) => {
+            if (a.favorite && !b.favorite) return -1;
+            if (!a.favorite && b.favorite) return 1;
+            return a.name.localeCompare(b.name);
+        });
     
         return (
             <section className="mb-8">
-                <h2 className="text-3xl font-medieval font-bold text-white mb-4">{title}</h2>
-                {moodFilterUI}
+                <h2 className="text-2xl font-medieval font-bold text-white mb-4">{title}</h2>
+                {filterUI}
                 {sectionSounds.length > 0 ? (
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 md:gap-4">
                         {sectionSounds.map(sound => (
@@ -253,8 +385,6 @@ const App: React.FC = () => {
                                 isPlaying={!!playingStates[sound.id]}
                                 onPlay={handlePlaySound}
                                 onStop={handleStopSound}
-                                onEdit={(s) => { setSoundToEdit(s); setEditModalOpen(true); }}
-                                onDelete={handleDeleteSound}
                             />
                         ))}
                     </div>
@@ -265,24 +395,31 @@ const App: React.FC = () => {
         );
     }
 
+    const isAnythingPlaying = Object.values(playingStates).some(p => p);
+    const sortedLibrarySounds = [...librarySounds].sort((a, b) => a.name.localeCompare(b.name));
+
     return (
-        <div className="min-h-screen bg-gradient-to-br from-stone-900 via-stone-800 to-stone-900">
+        <div className="min-h-screen bg-gradient-to-br from-stone-900 via-stone-800 to-stone-900 flex flex-col">
             <SceneHeader
                 scenes={scenes}
                 activeSceneId={activeSceneId}
                 onSelectScene={setActiveSceneId}
-                isBgmPlaying={Object.entries(playingStates).some(([id, playing]) => playing && sounds.find(s => s.id === id)?.type === 'Background Music')}
-                onToggleBgm={handleToggleBGM}
+                isAudioContextPlaying={audioContextState === 'running'}
+                onToggleGlobalPlayPause={handleToggleGlobalPlayPause}
+                onStopAllSounds={handleStopAllSounds}
                 bgmVolume={masterBGMVolume}
+// Fix: Corrected typo from handleBgmVolumeChange to handleBGMVolumeChange to match the function name.
                 onBgmVolumeChange={handleBGMVolumeChange}
                 onLogout={handleLogout}
+                onOpenSoundManager={() => setSoundManagerModalOpen(true)}
                 airplayElement={soundManagerRef.current?.airPlayAudioElement || null}
+                isPlayerVisible={isAnythingPlaying}
             />
 
-            <main className="p-4 md:p-8">
+            <main className="flex-grow p-4 md:p-8 pb-24">
                 {renderSoundSection('Background Music', 'Background Music')}
                 {renderSoundSection('Ambience', 'Ambience')}
-                {renderSoundSection('Sound Effect', 'Sound Effects')}
+                {renderSoundSection('One-shots', 'One-shots')}
 
                  {sounds.length === 0 && librarySounds.length > 0 && (
                     <div className="text-center text-stone-400 mt-10">
@@ -290,17 +427,49 @@ const App: React.FC = () => {
                         <p>Try selecting another scene or "All".</p>
                     </div>
                  )}
-
-                <div className="mt-8">
-                    <button onClick={() => setAddModalOpen(true)} className="flex items-center gap-2 py-3 px-5 rounded-lg text-white bg-amber-600 hover:bg-amber-500 transition-colors">
-                        <PlusCircle size={20} />
-                        Add Sound
-                    </button>
-                </div>
             </main>
             
-            <AddSoundModal isOpen={isAddModalOpen} onClose={() => setAddModalOpen(false)} onAddSound={handleAddSound} />
-            <EditSoundModal isOpen={isEditModalOpen} sound={soundToEdit} onClose={() => {setEditModalOpen(false); setSoundToEdit(null);}} onUpdateSound={handleUpdateSound} />
+            <AtmosphereFooter 
+                activeAtmosphere={activeAtmosphere}
+                onSelectAtmosphere={handleSelectAtmosphere}
+                isSceneActive={!!activeSceneId}
+            />
+
+            <AddSoundModal 
+                isOpen={isAddModalOpen} 
+                onClose={() => { 
+                    setAddModalOpen(false); 
+                    setSoundManagerModalOpen(true);
+                }} 
+                onAddSound={handleAddSound} 
+                allScenes={scenes} 
+            />
+            <EditSoundModal 
+                isOpen={isEditModalOpen} 
+                sound={soundToEdit} 
+                onClose={() => {
+                    setEditModalOpen(false); 
+                    setSoundToEdit(null);
+                    setSoundManagerModalOpen(true);
+                }} 
+                onUpdateSound={handleUpdateSound} 
+                allScenes={scenes} 
+            />
+            <SoundManagerModal
+                isOpen={isSoundManagerModalOpen}
+                onClose={() => setSoundManagerModalOpen(false)}
+                sounds={sortedLibrarySounds}
+                onAddSound={() => {
+                    setSoundManagerModalOpen(false);
+                    setAddModalOpen(true);
+                }}
+                onEditSound={(sound) => {
+                    setSoundManagerModalOpen(false);
+                    setSoundToEdit(sound);
+                    setEditModalOpen(true);
+                }}
+                onDeleteSound={handleDeleteSound}
+            />
         </div>
     );
 };

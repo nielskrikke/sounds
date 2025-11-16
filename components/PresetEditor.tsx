@@ -82,7 +82,7 @@ export const PresetEditor: React.FC<PresetEditorProps> = ({ preset, allSounds, o
             <div className="bg-stone-900/50 p-3 rounded-md border border-stone-700">
                 <SoundGroup title="Background Music" sounds={soundsByType('Background Music')} selectedIds={selectedSoundIds} onToggle={handleToggleSound} />
                 <SoundGroup title="Ambience" sounds={soundsByType('Ambience')} selectedIds={selectedSoundIds} onToggle={handleToggleSound} />
-                <SoundGroup title="Sound Effects" sounds={soundsByType('Sound Effect')} selectedIds={selectedSoundIds} onToggle={handleToggleSound} />
+                <SoundGroup title="One-shots" sounds={soundsByType('One-shots')} selectedIds={selectedSoundIds} onToggle={handleToggleSound} />
             </div>
         </div>
       </div>
