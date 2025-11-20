@@ -1,6 +1,6 @@
 
 export type SoundType = 'Background Music' | 'Ambience' | 'One-shots';
-export type AtmosphereLevel = 'Relaxed' | 'Neutral' | 'Combat';
+export type AtmosphereLevel = 'Relaxed' | 'Neutral' | 'Intense';
 
 export interface Scene {
   id: string;
@@ -24,6 +24,7 @@ export interface Sound {
   location_tag: string | null;
   type_tag: string | null;
   scenes?: Scene[];
+  atmosphere?: AtmosphereLevel[] | null;
   created_at: string;
 }
 

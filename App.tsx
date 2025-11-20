@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
 import { Sound, SoundType, Scene, AtmosphereLevel } from './types';
@@ -10,15 +11,18 @@ import {
     deleteSoundFile,
     getScenes,
     getSoundSceneJoins,
-    deleteOrphanedScenes
+    addScene,
+    removeScene
 } from './lib/soundFileService';
 import { SoundTile } from './components/SoundTile';
 import { SceneHeader } from './components/PresetHeader';
 import { AddSoundModal } from './components/AddSoundModal';
 import { EditSoundModal } from './components/EditSoundModal';
 import { SoundManagerModal } from './components/SoundManagerModal';
+import { SceneManagerModal } from './components/SceneManagerModal';
 import { supabase } from './lib/supabase';
 import { AtmosphereFooter } from './components/AtmosphereFooter';
+import { SearchWidget } from './components/SearchWidget';
 
 const App: React.FC = () => {
     const [user, setUser] = useState<User | null>(null);
@@ -32,6 +36,7 @@ const App: React.FC = () => {
     const [activeMoodFilter, setActiveMoodFilter] = useState<string | null>(null);
     const [activeSETypeFilter, setActiveSETypeFilter] = useState<string | null>(null);
     const [activeAtmosphere, setActiveAtmosphere] = useState<AtmosphereLevel | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
     
     const [playingStates, setPlayingStates] = useState<Record<string, boolean>>({});
     const [audioContextState, setAudioContextState] = useState<AudioContextState>('suspended');
@@ -40,11 +45,12 @@ const App: React.FC = () => {
 
     const [isAddModalOpen, setAddModalOpen] = useState(false);
     const [isEditModalOpen, setEditModalOpen] = useState(false);
-    const [soundToEdit, setSoundToEdit] = useState<Sound | null>(null);
     const [isSoundManagerModalOpen, setSoundManagerModalOpen] = useState(false);
+    const [isSceneManagerModalOpen, setSceneManagerModalOpen] = useState(false);
+    const [soundToEdit, setSoundToEdit] = useState<Sound | null>(null);
 
-    const fetchData = async (userId: string) => {
-        setIsLoading(true);
+    const fetchData = async (userId: string, showLoading = true) => {
+        if (showLoading) setIsLoading(true);
 
         const { data: { user: currentUser } } = await supabase.auth.getUser();
         const favoriteSoundIds = new Set<string>(currentUser?.user_metadata?.favorite_sounds || []);
@@ -75,7 +81,8 @@ const App: React.FC = () => {
         setLibrarySounds(soundsWithScenes);
         setScenes(fetchedScenes.sort((a,b) => a.name.localeCompare(b.name)));
         soundManagerRef.current?.loadSounds(soundsWithScenes);
-        setIsLoading(false);
+        
+        if (showLoading) setIsLoading(false);
     };
 
     // Authentication and data fetching
@@ -105,7 +112,7 @@ const App: React.FC = () => {
             soundManagerRef.current = new SoundManager(onStateChange);
         }
         if (user) {
-            fetchData(user.id);
+            fetchData(user.id, true);
         } else {
             setSounds([]);
             setLibrarySounds([]);
@@ -116,13 +123,29 @@ const App: React.FC = () => {
     }, [user, onStateChange]);
 
     useEffect(() => {
-        if (activeSceneId === null) {
-            setSounds(librarySounds);
-        } else {
-            setSounds(librarySounds.filter(sound => 
+        let filtered = librarySounds;
+
+        // 1. Scene Filter
+        if (activeSceneId !== null) {
+            filtered = filtered.filter(sound => 
                 sound.include_in_all_scenes || sound.scenes?.some(scene => scene.id === activeSceneId)
-            ));
+            );
         }
+
+        // 2. Search Filter (Live typing)
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            filtered = filtered.filter(s => 
+                s.name.toLowerCase().includes(q) || 
+                s.category_tag?.toLowerCase().includes(q) ||
+                s.mood_tag?.toLowerCase().includes(q) ||
+                s.location_tag?.toLowerCase().includes(q) ||
+                s.type_tag?.toLowerCase().includes(q)
+            );
+        }
+
+        setSounds(filtered);
+        
         setActiveMoodFilter(null);
         setActiveSETypeFilter(null);
         
@@ -133,8 +156,13 @@ const App: React.FC = () => {
                 }
             })
         }
-        setActiveAtmosphere(null); // Reset atmosphere when scene changes
-    }, [activeSceneId, librarySounds]);
+        setActiveAtmosphere(null); 
+    }, [activeSceneId, librarySounds, searchQuery]); 
+
+    const handleSceneChange = (id: string | null) => {
+        setActiveSceneId(id);
+        setSearchQuery(''); 
+    }
 
     // Handlers
     const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -168,12 +196,6 @@ const App: React.FC = () => {
     const handleSelectAtmosphere = (atmosphere: AtmosphereLevel) => {
         if (!soundManagerRef.current) return;
 
-        // Atmospheres only work when a specific scene is selected.
-        if (!activeSceneId) {
-            alert("Please select a specific scene to activate an atmosphere.");
-            return;
-        }
-
         const newAtmosphere = atmosphere === activeAtmosphere ? null : atmosphere;
         setActiveAtmosphere(newAtmosphere);
 
@@ -181,8 +203,21 @@ const App: React.FC = () => {
 
         contextSounds.forEach(sound => {
             const isPlaying = playingStates[sound.id];
-            const sceneInfo = sound.scenes?.find(s => s.id === activeSceneId);
-            const shouldBePlaying = newAtmosphere && sceneInfo?.atmosphere?.includes(newAtmosphere);
+            let matchesAtmosphere = false;
+
+            if (activeSceneId) {
+                const sceneInfo = sound.scenes?.find(s => s.id === activeSceneId);
+                if (sceneInfo && sceneInfo.atmosphere) {
+                     matchesAtmosphere = sceneInfo.atmosphere.includes(newAtmosphere!);
+                }
+            } else {
+                // Global / All View
+                if (sound.atmosphere) {
+                    matchesAtmosphere = sound.atmosphere.includes(newAtmosphere!);
+                }
+            }
+
+            const shouldBePlaying = newAtmosphere && matchesAtmosphere;
 
             if (isPlaying && !shouldBePlaying) {
                 soundManagerRef.current?.stopSound(sound);
@@ -191,8 +226,27 @@ const App: React.FC = () => {
             }
         });
     };
+    
+    // Scene Management Handlers
+    const handleAddScene = async (name: string) => {
+        if (!user) return;
+        await addScene(user.id, name);
+        await fetchData(user.id, false);
+    }
 
-    const handleAddSound = async (file: File, details: Omit<Sound, 'id' | 'user_id' | 'file_path' | 'publicURL' | 'created_at' | 'scenes' | 'atmosphere' | 'favorite'> & { sceneNames: string[], sceneAtmospheres: Record<string, AtmosphereLevel[] | null>, favorite: boolean }) => {
+    const handleRemoveScene = async (id: string) => {
+        if (!user) return { success: false, error: "Not authenticated" };
+        
+        const result = await removeScene(id, user.id);
+        
+        if (result.success) {
+            if (activeSceneId === id) setActiveSceneId(null);
+            await fetchData(user.id, false);
+        }
+        return result;
+    }
+
+    const handleAddSound = async (file: File, details: Omit<Sound, 'id' | 'user_id' | 'file_path' | 'publicURL' | 'created_at' | 'scenes' | 'atmosphere' | 'favorite'> & { sceneIds: string[], sceneAtmospheres: Record<string, AtmosphereLevel[] | null>, favorite: boolean }) => {
         if (!user) return;
         const { favorite, ...otherDetails } = details;
         const newSound = await uploadSoundFile(user.id, file, otherDetails);
@@ -204,11 +258,11 @@ const App: React.FC = () => {
                 const newFavorites = [...new Set([...currentFavorites, newSound.id])];
                 await supabase.auth.updateUser({ data: { favorite_sounds: newFavorites } });
             }
-            await fetchData(user.id);
+            await fetchData(user.id, false);
         }
     };
     
-    const handleUpdateSound = async (id: string, updates: Partial<Omit<Sound, 'scenes'>> & { sceneNames: string[], sceneAtmospheres: Record<string, AtmosphereLevel[] | null> }) => {
+    const handleUpdateSound = async (id: string, updates: Partial<Omit<Sound, 'scenes'>> & { sceneIds: string[], sceneAtmospheres: Record<string, AtmosphereLevel[] | null> }) => {
         if (!user) return;
 
         const { favorite, ...otherUpdates } = updates;
@@ -230,32 +284,27 @@ const App: React.FC = () => {
             }
         }
         
-        const hasOtherUpdates = Object.keys(otherUpdates).length > 0 && 
-            (Object.keys(otherUpdates).some(k => !['sceneNames', 'sceneAtmospheres'].includes(k)) || otherUpdates.sceneNames?.length);
+        const hasOtherUpdates = Object.keys(otherUpdates).length > 0;
 
         if(hasOtherUpdates) {
-             const updatedSound = await updateSoundFile(id, otherUpdates as any);
-             if(updatedSound) {
-                 await deleteOrphanedScenes(user.id);
-             }
+             await updateSoundFile(id, otherUpdates as any);
         }
         
-        await fetchData(user.id);
+        await fetchData(user.id, false);
     };
 
     const handleDeleteSound = async (soundToDelete: Sound) => {
-        if (window.confirm(`Are you sure you want to delete "${soundToDelete.name}"?`)) {
-            if (!user) return;
-            soundManagerRef.current?.stopSound(soundToDelete);
-            const success = await deleteSoundFile(soundToDelete);
-            if (success) {
-                await deleteOrphanedScenes(user.id);
-                await fetchData(user.id);
-            }
+        if (!user) return;
+        soundManagerRef.current?.stopSound(soundToDelete);
+        const { success, error } = await deleteSoundFile(soundToDelete);
+        if (success) {
+            await fetchData(user.id, false);
+        } else {
+            console.error("Delete failed:", error);
+            alert(`Failed to delete sound. ${error}`);
         }
     };
 
-    // Render logic
     if (isLoading) {
         return <div className="h-screen w-screen flex items-center justify-center bg-stone-900 text-white">Loading...</div>;
     }
@@ -264,19 +313,19 @@ const App: React.FC = () => {
         return (
             <div className="min-h-screen bg-gradient-to-br from-stone-900 via-stone-800 to-stone-900 flex flex-col justify-center items-center p-4">
                 <div className="w-full max-w-sm">
-                    <h1 className="text-5xl font-medieval font-bold text-center text-white mb-8">TTRPG Soundboard</h1>
-                    <form onSubmit={handleLogin} className="bg-stone-800 shadow-md rounded-lg px-8 pt-6 pb-8 mb-4">
+                    <h1 className="text-5xl font-medieval font-bold text-center text-white mb-8 drop-shadow-md">TTRPG Soundboard</h1>
+                    <form onSubmit={handleLogin} className="bg-stone-900/60 backdrop-blur-2xl border border-stone-700/50 shadow-2xl rounded-3xl px-8 pt-6 pb-8 mb-4 animate-modal-in">
                         <div className="mb-4">
                             <label className="block text-stone-300 text-sm font-bold mb-2" htmlFor="username">Username</label>
-                            <input className="shadow appearance-none border rounded w-full py-2 px-3 bg-stone-700 border-stone-600 text-white leading-tight focus:outline-none focus:shadow-outline" id="username" name="username" type="text" placeholder="Username" required />
+                            <input className="shadow appearance-none border border-stone-600/50 rounded-xl w-full py-2 px-3 bg-stone-800/40 text-white leading-tight focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all" id="username" name="username" type="text" placeholder="Username" required />
                         </div>
                         <div className="mb-6">
                             <label className="block text-stone-300 text-sm font-bold mb-2" htmlFor="password">Password</label>
-                            <input className="shadow appearance-none border rounded w-full py-2 px-3 bg-stone-700 border-stone-600 text-white mb-3 leading-tight focus:outline-none focus:shadow-outline" id="password" name="password" type="password" placeholder="******************" required />
-                            {authError && <p className="text-red-500 text-xs italic">{authError}</p>}
+                            <input className="shadow appearance-none border border-stone-600/50 rounded-xl w-full py-2 px-3 bg-stone-800/40 text-white mb-3 leading-tight focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all" id="password" name="password" type="password" placeholder="******************" required />
+                            {authError && <p className="text-red-400 text-xs italic bg-red-900/20 p-2 rounded border border-red-800/50">{authError}</p>}
                         </div>
                         <div className="flex items-center justify-between">
-                            <button className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full" type="submit">
+                            <button className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-xl focus:outline-none focus:shadow-outline w-full shadow-lg hover:shadow-amber-900/20 transition-all hover:scale-105 active:scale-95 duration-300" type="submit">
                                 Sign In / Sign Up
                             </button>
                         </div>
@@ -362,7 +411,11 @@ const App: React.FC = () => {
     
         const hasSoundsOfTypeInScene = sounds.some(s => s.type === type);
     
-        if (!hasSoundsOfTypeInScene) {
+        if (!hasSoundsOfTypeInScene && !searchQuery) {
+            return null;
+        }
+        
+        if (searchQuery && sectionSounds.length === 0) {
             return null;
         }
 
@@ -376,21 +429,17 @@ const App: React.FC = () => {
             <section className="mb-8">
                 <h2 className="text-2xl font-medieval font-bold text-white mb-4">{title}</h2>
                 {filterUI}
-                {sectionSounds.length > 0 ? (
-                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 md:gap-4">
-                        {sectionSounds.map(sound => (
-                            <SoundTile 
-                                key={sound.id} 
-                                sound={sound}
-                                isPlaying={!!playingStates[sound.id]}
-                                onPlay={handlePlaySound}
-                                onStop={handleStopSound}
-                            />
-                        ))}
-                    </div>
-                ) : (
-                    <p className="text-stone-400 italic">No sounds match the current filter in this scene.</p>
-                )}
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 md:gap-4">
+                    {sectionSounds.map(sound => (
+                        <SoundTile 
+                            key={sound.id} 
+                            sound={sound}
+                            isPlaying={!!playingStates[sound.id]}
+                            onPlay={handlePlaySound}
+                            onStop={handleStopSound}
+                        />
+                    ))}
+                </div>
             </section>
         );
     }
@@ -403,15 +452,15 @@ const App: React.FC = () => {
             <SceneHeader
                 scenes={scenes}
                 activeSceneId={activeSceneId}
-                onSelectScene={setActiveSceneId}
+                onSelectScene={handleSceneChange}
                 isAudioContextPlaying={audioContextState === 'running'}
                 onToggleGlobalPlayPause={handleToggleGlobalPlayPause}
                 onStopAllSounds={handleStopAllSounds}
                 bgmVolume={masterBGMVolume}
-// Fix: Corrected typo from handleBgmVolumeChange to handleBGMVolumeChange to match the function name.
                 onBgmVolumeChange={handleBGMVolumeChange}
                 onLogout={handleLogout}
                 onOpenSoundManager={() => setSoundManagerModalOpen(true)}
+                onOpenSceneManager={() => setSceneManagerModalOpen(true)}
                 airplayElement={soundManagerRef.current?.airPlayAudioElement || null}
                 isPlayerVisible={isAnythingPlaying}
             />
@@ -423,8 +472,14 @@ const App: React.FC = () => {
 
                  {sounds.length === 0 && librarySounds.length > 0 && (
                     <div className="text-center text-stone-400 mt-10">
-                        <p className="text-lg">No sounds found in this scene.</p>
-                        <p>Try selecting another scene or "All".</p>
+                        {searchQuery ? (
+                             <p className="text-lg">No sounds match "{searchQuery}"</p>
+                        ) : (
+                            <>
+                                <p className="text-lg">No sounds found in this scene.</p>
+                                <p>Try selecting another scene or "All".</p>
+                            </>
+                        )}
                     </div>
                  )}
             </main>
@@ -432,8 +487,10 @@ const App: React.FC = () => {
             <AtmosphereFooter 
                 activeAtmosphere={activeAtmosphere}
                 onSelectAtmosphere={handleSelectAtmosphere}
-                isSceneActive={!!activeSceneId}
+                isSceneActive={!!activeSceneId || activeSceneId === null} // Always active now
             />
+            
+            <SearchWidget searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
 
             <AddSoundModal 
                 isOpen={isAddModalOpen} 
@@ -469,6 +526,13 @@ const App: React.FC = () => {
                     setEditModalOpen(true);
                 }}
                 onDeleteSound={handleDeleteSound}
+            />
+            <SceneManagerModal
+                isOpen={isSceneManagerModalOpen}
+                onClose={() => setSceneManagerModalOpen(false)}
+                scenes={scenes}
+                onAddScene={handleAddScene}
+                onRemoveScene={handleRemoveScene}
             />
         </div>
     );
