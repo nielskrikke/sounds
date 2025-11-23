@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Scene } from '../types';
-import { Play, Pause, Volume2, VolumeX, LogOut, Library, StopCircle, Layers } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, LogOut, Library, StopCircle, Layers, ChevronDown } from 'lucide-react';
 import { AirPlayButton } from './AirPlayButton';
 
 interface SceneHeaderProps {
@@ -46,24 +46,41 @@ export const SceneHeader: React.FC<SceneHeaderProps> = ({
 
   return (
     <header className="sticky top-4 md:top-8 z-40 px-4 md:px-8 w-full flex justify-center mt-4 md:mt-8 mb-3 pointer-events-none transition-all duration-300">
-      <div className="pointer-events-auto w-full bg-stone-800/80 backdrop-blur-xl border border-stone-700/50 shadow-2xl rounded-2xl p-2 sm:p-3 flex flex-col lg:flex-row items-center justify-between gap-4 transition-all duration-300">
+      <div className="pointer-events-auto w-full bg-stone-800/80 backdrop-blur-xl border border-stone-700/50 shadow-2xl rounded-2xl p-2 sm:p-3 flex flex-col lg:flex-row items-center justify-between gap-2 sm:gap-4 transition-all duration-300">
         
         {/* Left: Scene Controls */}
-        <div className="flex items-center w-full lg:w-auto gap-3 overflow-hidden">
+        <div className="flex items-center w-full lg:w-auto gap-2 sm:gap-3 overflow-hidden">
            {/* Integrated Scene Manager Trigger */}
            <button
               onClick={onOpenSceneManager}
-              className={`${baseButtonClass} flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl bg-stone-900/60 border border-stone-700/50 text-stone-300 hover:text-amber-400 hover:border-amber-500/50 hover:bg-stone-800 hover:shadow-lg group`}
+              className={`${baseButtonClass} flex-shrink-0 flex items-center gap-2 px-3 py-2 sm:px-4 rounded-xl bg-stone-900/60 border border-stone-700/50 text-stone-300 hover:text-amber-400 hover:border-amber-500/50 hover:bg-stone-800 hover:shadow-lg group`}
               title="Manage Scenes"
            >
                <Layers size={18} className="group-hover:scale-110 transition-transform duration-300 text-amber-600/80 group-hover:text-amber-400" />
-               <span className="font-medieval font-bold text-lg pt-0.5">Scenes</span>
+               <span className="font-medieval font-bold text-lg pt-0.5 hidden sm:inline">Scenes</span>
            </button>
+
+           {/* Mobile Scene Selector (Dropdown) */}
+            <div className="relative flex-grow md:hidden h-full group">
+                <select
+                    value={activeSceneId ?? ""}
+                    onChange={(e) => onSelectScene(e.target.value === "" ? null : e.target.value)}
+                    className="w-full h-full appearance-none bg-stone-900/60 border border-stone-700/50 text-stone-300 text-sm font-medium rounded-xl pl-3 pr-8 py-2 focus:outline-none focus:border-amber-500/50 transition-colors"
+                >
+                    <option value="">All Scenes</option>
+                    {scenes.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-stone-500 group-hover:text-stone-300 transition-colors">
+                    <ChevronDown size={16} />
+                </div>
+            </div>
 
             <div className="h-8 w-px bg-stone-700/50 hidden lg:block"></div>
 
-            {/* Scrollable Scene List */}
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-2 w-full mask-linear-fade px-1">
+            {/* Desktop Scrollable Scene List */}
+            <div className="hidden md:flex items-center gap-2 overflow-x-auto no-scrollbar py-2 w-full mask-linear-fade px-1">
                 <button
                     onClick={() => onSelectScene(null)}
                     className={`${sceneButtonClass} ${activeSceneId === null ? activeSceneClass : inactiveSceneClass}`}
@@ -114,8 +131,8 @@ export const SceneHeader: React.FC<SceneHeaderProps> = ({
                 </button>
 
                 {/* Volume Slider */}
-                <div className="flex items-center gap-2 px-2 w-28 sm:w-36 group/vol">
-                  <div className="text-stone-500 group-hover/vol:text-stone-400 transition-colors">
+                <div className="flex items-center gap-2 px-2 w-20 sm:w-36 group/vol">
+                  <div className="text-stone-500 group-hover/vol:text-stone-400 transition-colors hidden sm:block">
                      {bgmVolume > 0 ? <Volume2 size={18} /> : <VolumeX size={18} />}
                   </div>
                   <input
@@ -148,4 +165,3 @@ export const SceneHeader: React.FC<SceneHeaderProps> = ({
     </header>
   );
 };
-    

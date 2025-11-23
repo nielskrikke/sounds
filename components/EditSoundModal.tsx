@@ -168,7 +168,11 @@ export const EditSoundModal: React.FC<EditSoundModalProps> = ({ isOpen, sound, o
 
     if (type === 'Background Music' || type === 'Ambience') {
         finalSceneIds.forEach(id => {
-            finalAtmospheres[id] = sceneAtmospheres[id] || [];
+            if (includeInAllScenes) {
+                finalAtmospheres[id] = globalAtmosphere;
+            } else {
+                finalAtmospheres[id] = sceneAtmospheres[id] || [];
+            }
         });
     }
 

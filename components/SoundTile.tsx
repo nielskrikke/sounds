@@ -1,6 +1,7 @@
+
 import React from 'react';
 import { Sound, SoundType } from '../types';
-import { Music, Waves, Zap, Star, Repeat } from 'lucide-react';
+import { Music, Waves, Zap, Star, Repeat, Globe } from 'lucide-react';
 
 interface SoundTileProps {
   sound: Sound;
@@ -39,11 +40,16 @@ export const SoundTile: React.FC<SoundTileProps> = ({ sound, isPlaying, onPlay, 
       className={`relative group aspect-square rounded-xl p-3 flex flex-col justify-end cursor-pointer transition-all duration-300 shadow-lg hover:shadow-xl bg-gradient-to-br ${gradient} ${isPlaying ? 'ring-2 ring-white ring-offset-2 ring-offset-stone-900 animate-glow' : ''}`}
       aria-label={`Play or stop ${sound.name}`}
     >
-      <div className="absolute top-2 left-2">
+      <div className="absolute top-2 left-2 flex items-center gap-1">
         {sound.favorite && (
-          <div className="text-yellow-400">
+          <div className="text-yellow-400 drop-shadow-sm" title="Favorite">
             <Star size={14} fill="currentColor" />
           </div>
+        )}
+        {sound.include_in_all_scenes && (
+            <div className="text-sky-200 opacity-90 drop-shadow-sm" title="Included in all scenes">
+                <Globe size={14} />
+            </div>
         )}
       </div>
 
@@ -64,7 +70,7 @@ export const SoundTile: React.FC<SoundTileProps> = ({ sound, isPlaying, onPlay, 
                 ))}
             </div>
         )}
-        <h3 className="font-bold text-sm break-words">{sound.name}</h3>
+        <h3 className="font-bold text-sm break-words leading-tight">{sound.name}</h3>
       </div>
     </div>
   );

@@ -89,7 +89,11 @@ export const AddSoundModal: React.FC<AddSoundModalProps> = ({ isOpen, onClose, o
 
     if (type === 'Background Music' || type === 'Ambience') {
         finalSceneIds.forEach(id => {
-            finalAtmospheres[id] = sceneAtmospheres[id] || [];
+            if (includeInAllScenes) {
+                finalAtmospheres[id] = globalAtmosphere;
+            } else {
+                finalAtmospheres[id] = sceneAtmospheres[id] || [];
+            }
         });
     }
 

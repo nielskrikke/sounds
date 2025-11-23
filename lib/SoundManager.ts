@@ -51,6 +51,18 @@ export class SoundManager {
         this.destinationNode = this.audioContext.createMediaStreamDestination();
         this.masterGain.connect(this.destinationNode);
 
+        // FIX: Add a silent oscillator to keep the audio pipeline active.
+        // This prevents "stuck buffer" glitches on mobile devices (especially iOS) when all other sounds are stopped.
+        // Without this, the MediaStreamDestination might stop producing frames, causing the last buffer to loop.
+        const silentOsc = this.audioContext.createOscillator();
+        const silentGain = this.audioContext.createGain();
+        silentOsc.type = 'sine';
+        silentOsc.frequency.value = 440; // Frequency doesn't matter at 0 gain
+        silentGain.gain.value = 0; // Absolute silence
+        silentOsc.connect(silentGain);
+        silentGain.connect(this.masterGain);
+        silentOsc.start();
+
         // Master Output Element (The one AirPlay will target)
         this.airPlayAudioElement = new Audio();
         this.airPlayAudioElement.crossOrigin = "anonymous";
@@ -144,21 +156,34 @@ export class SoundManager {
     private stopImmediate(activeSound: ActiveSound) {
         if (activeSound.fadeInterval) clearInterval(activeSound.fadeInterval);
         
+        // Stop sources first
         try {
             if (activeSound.bufferSource) {
                 activeSound.bufferSource.stop();
-                activeSound.bufferSource.disconnect();
             }
             if (activeSound.audioElement) {
                 activeSound.audioElement.pause();
-                activeSound.audioElement.src = ""; // Release memory
+            }
+        } catch (e) {
+            // Ignore errors if already stopped or invalid state
+        }
+
+        // Disconnect nodes
+        try {
+            if (activeSound.bufferSource) {
+                activeSound.bufferSource.disconnect();
             }
             if (activeSound.mediaElementSource) {
                 activeSound.mediaElementSource.disconnect();
             }
+            if (activeSound.audioElement) {
+                // Clean up audio element to prevent memory leaks and audio holding
+                activeSound.audioElement.removeAttribute('src');
+                activeSound.audioElement.load();
+            }
             activeSound.gainNode.disconnect();
         } catch (e) {
-            console.error("Error stopping sound:", e);
+            console.error("Error disconnecting sound nodes:", e);
         }
         
         this.activeSounds.delete(activeSound.id);

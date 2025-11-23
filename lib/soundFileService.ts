@@ -36,10 +36,27 @@ export const addScene = async (userId: string, name: string): Promise<Scene | nu
     
     // 3. Create joins for these global sounds to the new scene
     if (globalSounds && globalSounds.length > 0) {
+        const globalSoundIds = globalSounds.map(s => s.id);
+
+        // Attempt to find a reference atmosphere for these sounds from existing joins
+        const { data: existingJoins } = await supabase
+            .from('sound_scene_join')
+            .select('sound_id, atmosphere')
+            .in('sound_id', globalSoundIds);
+            
+        const atmosphereMap = new Map<string, AtmosphereLevel[]>();
+        if (existingJoins) {
+            existingJoins.forEach(j => {
+                if (!atmosphereMap.has(j.sound_id) && j.atmosphere && j.atmosphere.length > 0) {
+                    atmosphereMap.set(j.sound_id, j.atmosphere);
+                }
+            });
+        }
+
         const newJoins = globalSounds.map(s => ({
             sound_id: s.id,
             scene_id: scene.id,
-            atmosphere: [] as AtmosphereLevel[] // Default to no specific atmosphere, user can configure later
+            atmosphere: atmosphereMap.get(s.id) || [] as AtmosphereLevel[] 
         }));
         
         const { error: joinError } = await supabase
@@ -80,6 +97,46 @@ export const removeScene = async (sceneId: string, userId: string): Promise<{ su
     
     if (count === 0) {
         return { success: false, error: "Scene not found or access denied." };
+    }
+
+    return { success: true };
+};
+
+export const updateSceneJoins = async (
+    sceneId: string, 
+    soundData: Array<{ sound_id: string; atmosphere: AtmosphereLevel[] }>
+): Promise<{ success: boolean; error?: string }> => {
+    
+    // 1. Delete all existing joins for this scene
+    const { error: deleteError } = await supabase
+        .from('sound_scene_join')
+        .delete()
+        .eq('scene_id', sceneId);
+
+    if (deleteError) {
+        console.error('Error clearing scene joins:', deleteError.message);
+        return { success: false, error: deleteError.message };
+    }
+
+    // 2. Insert new joins
+    // Filter out entries that have no atmosphere set (unless you want them just "in" the scene without atmosphere, but usually we track them if they have >= 1 atmosphere or are forced in)
+    // For this app, we store the join if there is any atmosphere OR if we want to explicitly link it. 
+    // The UI handles sending the correct list.
+    if (soundData.length > 0) {
+        const rows = soundData.map(d => ({
+            scene_id: sceneId,
+            sound_id: d.sound_id,
+            atmosphere: d.atmosphere
+        }));
+
+        const { error: insertError } = await supabase
+            .from('sound_scene_join')
+            .insert(rows);
+            
+        if (insertError) {
+            console.error('Error inserting new scene joins:', insertError.message);
+            return { success: false, error: insertError.message };
+        }
     }
 
     return { success: true };
@@ -197,7 +254,6 @@ export const uploadSoundFile = async (
       mood_tag: details.mood_tag,
       location_tag: details.location_tag,
       type_tag: details.type_tag,
-      atmosphere: details.atmosphere // Include global atmosphere
   };
 
   const { data, error: dbError } = await supabase
@@ -240,8 +296,7 @@ export const updateSoundFile = async (
       'category_tag', 
       'mood_tag', 
       'location_tag', 
-      'type_tag',
-      'atmosphere' // Add to allowed fields
+      'type_tag'
   ];
 
   const dbUpdates: any = {};

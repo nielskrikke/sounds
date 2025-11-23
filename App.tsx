@@ -12,12 +12,11 @@ import {
     getScenes,
     getSoundSceneJoins,
     addScene,
-    removeScene
+    removeScene,
+    updateSceneJoins
 } from './lib/soundFileService';
 import { SoundTile } from './components/SoundTile';
 import { SceneHeader } from './components/PresetHeader';
-import { AddSoundModal } from './components/AddSoundModal';
-import { EditSoundModal } from './components/EditSoundModal';
 import { SoundManagerModal } from './components/SoundManagerModal';
 import { SceneManagerModal } from './components/SceneManagerModal';
 import { supabase } from './lib/supabase';
@@ -43,11 +42,8 @@ const App: React.FC = () => {
     const [masterBGMVolume, setMasterBGMVolume] = useState(0.5);
     const soundManagerRef = useRef<SoundManager | null>(null);
 
-    const [isAddModalOpen, setAddModalOpen] = useState(false);
-    const [isEditModalOpen, setEditModalOpen] = useState(false);
     const [isSoundManagerModalOpen, setSoundManagerModalOpen] = useState(false);
     const [isSceneManagerModalOpen, setSceneManagerModalOpen] = useState(false);
-    const [soundToEdit, setSoundToEdit] = useState<Sound | null>(null);
 
     const fetchData = async (userId: string, showLoading = true) => {
         if (showLoading) setIsLoading(true);
@@ -71,9 +67,22 @@ const App: React.FC = () => {
                 })
                 .filter((s): s is Scene => s !== undefined);
 
+            // Recover global atmosphere from joins.
+            // Since we removed the 'atmosphere' column from sound_files, we derive it
+            // for global sounds from the first available scene join (assuming uniformity)
+            // or from any specific join if we are filtering by scene later.
+            let derivedAtmosphere: AtmosphereLevel[] | null = null;
+            
+            // Try to find a representative atmosphere config
+            const representativeJoin = fetchedJoins.find(j => j.sound_id === sound.id && j.atmosphere && j.atmosphere.length > 0);
+            if (representativeJoin) {
+                derivedAtmosphere = representativeJoin.atmosphere;
+            }
+
             return { 
                 ...sound, 
                 scenes: soundScenes,
+                atmosphere: derivedAtmosphere,
                 favorite: favoriteSoundIds.has(sound.id) 
             };
         });
@@ -209,6 +218,9 @@ const App: React.FC = () => {
                 const sceneInfo = sound.scenes?.find(s => s.id === activeSceneId);
                 if (sceneInfo && sceneInfo.atmosphere) {
                      matchesAtmosphere = sceneInfo.atmosphere.includes(newAtmosphere!);
+                } else if (sound.include_in_all_scenes && sound.atmosphere) {
+                     // Fallback to global derived atmosphere if available
+                     matchesAtmosphere = sound.atmosphere.includes(newAtmosphere!);
                 }
             } else {
                 // Global / All View
@@ -245,6 +257,12 @@ const App: React.FC = () => {
         }
         return result;
     }
+    
+    const handleUpdateSceneJoins = async (sceneId: string, soundData: Array<{ sound_id: string; atmosphere: AtmosphereLevel[] }>) => {
+        if (!user) return;
+        await updateSceneJoins(sceneId, soundData);
+        await fetchData(user.id, false);
+    };
 
     const handleAddSound = async (file: File, details: Omit<Sound, 'id' | 'user_id' | 'file_path' | 'publicURL' | 'created_at' | 'scenes' | 'atmosphere' | 'favorite'> & { sceneIds: string[], sceneAtmospheres: Record<string, AtmosphereLevel[] | null>, favorite: boolean }) => {
         if (!user) return;
@@ -420,8 +438,19 @@ const App: React.FC = () => {
         }
 
         sectionSounds.sort((a, b) => {
-            if (a.favorite && !b.favorite) return -1;
-            if (!a.favorite && b.favorite) return 1;
+            // 1. Favorites always first
+            if (a.favorite !== b.favorite) {
+                return a.favorite ? -1 : 1;
+            }
+
+            // 2. If we are in a Specific Scene view, prioritize scene-specific tiles (include_in_all_scenes = false)
+            if (activeSceneId !== null) {
+                if (a.include_in_all_scenes !== b.include_in_all_scenes) {
+                    return a.include_in_all_scenes ? 1 : -1; // False comes before True
+                }
+            }
+
+            // 3. Alphabetical
             return a.name.localeCompare(b.name);
         });
     
@@ -492,47 +521,23 @@ const App: React.FC = () => {
             
             <SearchWidget searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
 
-            <AddSoundModal 
-                isOpen={isAddModalOpen} 
-                onClose={() => { 
-                    setAddModalOpen(false); 
-                    setSoundManagerModalOpen(true);
-                }} 
-                onAddSound={handleAddSound} 
-                allScenes={scenes} 
-            />
-            <EditSoundModal 
-                isOpen={isEditModalOpen} 
-                sound={soundToEdit} 
-                onClose={() => {
-                    setEditModalOpen(false); 
-                    setSoundToEdit(null);
-                    setSoundManagerModalOpen(true);
-                }} 
-                onUpdateSound={handleUpdateSound} 
-                allScenes={scenes} 
-            />
             <SoundManagerModal
                 isOpen={isSoundManagerModalOpen}
                 onClose={() => setSoundManagerModalOpen(false)}
                 sounds={sortedLibrarySounds}
-                onAddSound={() => {
-                    setSoundManagerModalOpen(false);
-                    setAddModalOpen(true);
-                }}
-                onEditSound={(sound) => {
-                    setSoundManagerModalOpen(false);
-                    setSoundToEdit(sound);
-                    setEditModalOpen(true);
-                }}
+                allScenes={scenes}
+                onAddSound={handleAddSound}
+                onUpdateSound={handleUpdateSound}
                 onDeleteSound={handleDeleteSound}
             />
             <SceneManagerModal
                 isOpen={isSceneManagerModalOpen}
                 onClose={() => setSceneManagerModalOpen(false)}
                 scenes={scenes}
+                sounds={sortedLibrarySounds}
                 onAddScene={handleAddScene}
                 onRemoveScene={handleRemoveScene}
+                onUpdateSceneJoins={handleUpdateSceneJoins}
             />
         </div>
     );

@@ -21,7 +21,7 @@ export const AtmosphereFooter: React.FC<AtmosphereFooterProps> = ({ activeAtmosp
   return (
     <div className={containerClasses}>
       <div className={`flex items-center gap-2 bg-stone-800/80 backdrop-blur-sm p-2 rounded-xl border border-stone-700 shadow-lg`}>
-        <span className="text-sm font-medieval text-white ml-2 mr-1 flex-shrink-0">Atmosphere:</span>
+        <span className="text-sm font-medieval text-white ml-2 mr-1 flex-shrink-0 hidden sm:inline">Atmosphere:</span>
         <div className="flex items-center gap-2">
             {(['Relaxed', 'Neutral', 'Intense'] as AtmosphereLevel[]).map(level => {
                 const config = atmosphereConfig[level];
@@ -30,9 +30,10 @@ export const AtmosphereFooter: React.FC<AtmosphereFooterProps> = ({ activeAtmosp
                     <button 
                         key={level} 
                         onClick={() => onSelectAtmosphere(level)} 
-                        className={`flex items-center justify-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-md transition-all duration-200 ${isActive ? `${config.color} shadow-lg ring-2 ring-white/50` : 'bg-stone-700 hover:bg-stone-600 text-stone-300'}`}
+                        className={`flex items-center justify-center gap-2 px-2 sm:px-3 py-1.5 text-sm font-semibold rounded-md transition-all duration-200 ${isActive ? `${config.color} shadow-lg ring-2 ring-white/50` : 'bg-stone-700 hover:bg-stone-600 text-stone-300'}`}
+                        title={level}
                     >
-                        {config.icon} {level}
+                        {config.icon} <span className="hidden sm:inline ml-1.5">{level}</span>
                     </button>
                 );
             })}
