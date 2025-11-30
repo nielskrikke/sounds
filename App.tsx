@@ -347,6 +347,11 @@ const App: React.FC = () => {
         return (
             <div className="min-h-screen bg-gradient-to-br from-stone-900 via-stone-800 to-stone-900 flex flex-col justify-center items-center p-4">
                 <div className="w-full max-w-sm">
+                    <img 
+                        src="https://nielskrikke.com/wp-content/uploads/2025/12/Rounded-Rectangle.png" 
+                        alt="Logo" 
+                        className="w-24 h-24 mx-auto mb-6 shadow-2xl rounded-2xl hover:scale-105 transition-transform duration-500 ease-out"
+                    />
                     <h1 className="text-5xl font-medieval font-bold text-center text-white mb-8 drop-shadow-md">TTRPG Soundboard</h1>
                     <form onSubmit={handleLogin} className="bg-stone-900/60 backdrop-blur-2xl border border-stone-700/50 shadow-2xl rounded-3xl px-8 pt-6 pb-8 mb-4 animate-modal-in">
                         <div className="mb-4">
