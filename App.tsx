@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
 import { Sound, SoundType, Scene, AtmosphereLevel } from './types';
@@ -158,13 +157,8 @@ const App: React.FC = () => {
         setActiveMoodFilter(null);
         setActiveSETypeFilter(null);
         
-        if(activeAtmosphere && soundManagerRef.current) {
-            librarySounds.forEach(sound => {
-                if((sound.type === "Background Music" || sound.type === "Ambience") && playingStates[sound.id]) {
-                    soundManagerRef.current?.stopSound(sound);
-                }
-            })
-        }
+        // Removed auto-stop logic to allow continuous playback when switching scenes.
+        
         setActiveAtmosphere(null); 
     }, [activeSceneId, librarySounds, searchQuery]); 
 
@@ -189,7 +183,25 @@ const App: React.FC = () => {
         await signOut();
     };
 
-    const handlePlaySound = (sound: Sound) => soundManagerRef.current?.playSound(sound);
+    const handlePlaySound = (sound: Sound) => {
+        // If the user manually starts a BGM, we assume they want to switch context from the current atmosphere
+        // and fade out any "Scene Atmosphere" sounds (BGM and Ambience) currently playing.
+        if (sound.type === 'Background Music' && activeAtmosphere) {
+             const playingIds = Object.keys(playingStates).filter(id => playingStates[id]);
+             playingIds.forEach(id => {
+                 const s = librarySounds.find(ls => ls.id === id);
+                 if (s && (s.type === 'Ambience' || s.type === 'Background Music')) {
+                     // Don't stop the sound we are about to play (SoundManager handles restart/debounce)
+                     if (s.id !== sound.id) {
+                         soundManagerRef.current?.stopSound(s);
+                     }
+                 }
+             });
+             setActiveAtmosphere(null);
+        }
+        soundManagerRef.current?.playSound(sound);
+    };
+    
     const handleStopSound = (sound: Sound) => soundManagerRef.current?.stopSound(sound);
     const handleToggleGlobalPlayPause = () => soundManagerRef.current?.toggleGlobalPlayPause();
     const handleStopAllSounds = () => {
@@ -208,24 +220,28 @@ const App: React.FC = () => {
         const newAtmosphere = atmosphere === activeAtmosphere ? null : atmosphere;
         setActiveAtmosphere(newAtmosphere);
 
-        const contextSounds = sounds.filter(s => s.type === 'Background Music' || s.type === 'Ambience');
+        // Use librarySounds to check ALL bgm/ambience, so we can stop sounds from previous scenes
+        // that are no longer relevant to the new context.
+        const contextSounds = librarySounds.filter(s => s.type === 'Background Music' || s.type === 'Ambience');
 
         contextSounds.forEach(sound => {
             const isPlaying = playingStates[sound.id];
             let matchesAtmosphere = false;
 
-            if (activeSceneId) {
-                const sceneInfo = sound.scenes?.find(s => s.id === activeSceneId);
-                if (sceneInfo && sceneInfo.atmosphere) {
-                     matchesAtmosphere = sceneInfo.atmosphere.includes(newAtmosphere!);
-                } else if (sound.include_in_all_scenes && sound.atmosphere) {
-                     // Fallback to global derived atmosphere if available
-                     matchesAtmosphere = sound.atmosphere.includes(newAtmosphere!);
-                }
-            } else {
-                // Global / All View
-                if (sound.atmosphere) {
-                    matchesAtmosphere = sound.atmosphere.includes(newAtmosphere!);
+            if (newAtmosphere) {
+                if (activeSceneId) {
+                    const sceneInfo = sound.scenes?.find(s => s.id === activeSceneId);
+                    if (sceneInfo && sceneInfo.atmosphere) {
+                         matchesAtmosphere = sceneInfo.atmosphere.includes(newAtmosphere);
+                    } else if (sound.include_in_all_scenes && sound.atmosphere) {
+                         // Fallback to global derived atmosphere if available
+                         matchesAtmosphere = sound.atmosphere.includes(newAtmosphere);
+                    }
+                } else {
+                    // Global / All View
+                    if (sound.atmosphere) {
+                        matchesAtmosphere = sound.atmosphere.includes(newAtmosphere);
+                    }
                 }
             }
 

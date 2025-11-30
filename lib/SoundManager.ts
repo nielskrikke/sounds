@@ -247,6 +247,8 @@ export class SoundManager {
             this.fadeIn(activeSound, isBGM);
             this.updatePlayingStates();
         }).catch(e => {
+            // Fix for "The play() request was interrupted by a call to pause()"
+            if (e.name === 'AbortError') return;
             console.error("Playback failed:", e);
             this.stopImmediate(activeSound);
         });
