@@ -348,7 +348,7 @@ const App: React.FC = () => {
             <div className="min-h-screen bg-gradient-to-br from-stone-900 via-stone-800 to-stone-900 flex flex-col justify-center items-center p-4">
                 <div className="w-full max-w-sm">
                     <img 
-                        src="https://nielskrikke.com/wp-content/uploads/2025/12/Rounded-Rectangle.png" 
+                        src="https://nielskrikke.com/wp-content/uploads/2025/12/sound-app-icon-v2.png" 
                         alt="Logo" 
                         className="w-24 h-24 mx-auto mb-6 shadow-2xl rounded-2xl hover:scale-105 transition-transform duration-500 ease-out"
                     />
