@@ -189,7 +189,8 @@ const AtmosphereEditor: React.FC<{
                                 <p className="text-sm font-medium text-stone-200 truncate" title={sound.name}>{sound.name}</p>
                                 <div className="flex items-center gap-1">
                                      <span className="text-[10px] text-stone-500 uppercase">{sound.type === 'Background Music' ? 'Music' : 'Ambience'}</span>
-                                     {sound.include_in_all_scenes && <Globe size={10} className="text-sky-400/70" title="Global Sound"/>}
+                                     {/* FIX: Removed title attribute from Globe component as it is not a valid prop for Lucide components */}
+                                     {sound.include_in_all_scenes && <Globe size={10} className="text-sky-400/70" />}
                                 </div>
                             </div>
                             

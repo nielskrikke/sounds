@@ -352,7 +352,7 @@ const App: React.FC = () => {
                         alt="Logo" 
                         className="w-24 h-24 mx-auto mb-6 shadow-2xl rounded-2xl hover:scale-105 transition-transform duration-500 ease-out"
                     />
-                    <h1 className="text-5xl font-medieval font-bold text-center text-white mb-8 drop-shadow-md">TTRPG Soundboard</h1>
+                    <h1 className="text-5xl font-medieval font-bold text-center text-white mb-8 drop-shadow-md">Sound Forge</h1>
                     <form onSubmit={handleLogin} className="bg-stone-900/60 backdrop-blur-2xl border border-stone-700/50 shadow-2xl rounded-3xl px-8 pt-6 pb-8 mb-4 animate-modal-in">
                         <div className="mb-4">
                             <label className="block text-stone-300 text-sm font-bold mb-2" htmlFor="username">Username</label>
