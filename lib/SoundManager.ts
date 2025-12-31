@@ -35,7 +35,7 @@ export class SoundManager {
 
     private sfxBuffers: Map<string, AudioBuffer> = new Map();
     
-    // Cache for streamed audio elements (BGM/Ambience) to support pre-buffering
+    // Cache for streamed audio elements (BGM/Ambience) to support reuse/crossfade
     private streamCache: Map<string, CachedStream> = new Map();
     
     private activeSounds: Map<string, ActiveSound> = new Map();
@@ -60,14 +60,12 @@ export class SoundManager {
         this.destinationNode = this.audioContext.createMediaStreamDestination();
         this.masterGain.connect(this.destinationNode);
 
-        // FIX: Add a silent oscillator to keep the audio pipeline active.
-        // This prevents "stuck buffer" glitches on mobile devices (especially iOS) when all other sounds are stopped.
-        // Without this, the MediaStreamDestination might stop producing frames, causing the last buffer to loop.
+        // Silent oscillator to keep the audio pipeline active (anti-glitch for iOS)
         const silentOsc = this.audioContext.createOscillator();
         const silentGain = this.audioContext.createGain();
         silentOsc.type = 'sine';
-        silentOsc.frequency.value = 440; // Frequency doesn't matter at 0 gain
-        silentGain.gain.value = 0; // Absolute silence
+        silentOsc.frequency.value = 440; 
+        silentGain.gain.value = 0; 
         silentOsc.connect(silentGain);
         silentGain.connect(this.masterGain);
         silentOsc.start();
@@ -78,7 +76,6 @@ export class SoundManager {
         this.airPlayAudioElement.srcObject = this.destinationNode.stream;
         this.airPlayAudioElement.autoplay = true;
         (this.airPlayAudioElement as any).playsInline = true; // Help on iOS
-        // Explicitly unmute to ensure the stream plays
         this.airPlayAudioElement.muted = false;
         
         this.onStateChange = onStateChangeCallback;
@@ -86,6 +83,27 @@ export class SoundManager {
         this.audioContext.onstatechange = () => {
              this.updatePlayingStates();
         };
+
+        // GLOBAL IOS UNLOCKER
+        // Capture the first interaction to ensure AudioContext and Output Element are running.
+        const unlock = () => {
+            if (this.audioContext.state === 'suspended') {
+                this.audioContext.resume().catch(e => console.debug("Context resume failed", e));
+            }
+            if (this.airPlayAudioElement.paused) {
+                this.airPlayAudioElement.play().catch(e => console.debug("Output play failed", e));
+            }
+            // Once running, we can remove the listeners to save overhead
+            if (this.audioContext.state === 'running' && !this.airPlayAudioElement.paused) {
+                 document.removeEventListener('click', unlock);
+                 document.removeEventListener('touchstart', unlock);
+                 document.removeEventListener('keydown', unlock);
+            }
+        };
+
+        document.addEventListener('click', unlock);
+        document.addEventListener('touchstart', unlock);
+        document.addEventListener('keydown', unlock);
     }
 
     private updatePlayingStates() {
@@ -118,26 +136,9 @@ export class SoundManager {
         const sfx = sounds.filter(s => s.type === 'One-shots');
         await Promise.all(sfx.map(sound => this.loadSound(sound)));
 
-        // 2. Streams: Pre-initialize Audio Elements (Partial Buffer)
-        // This allows iOS to start buffering metadata and initial chunks so playback is instant.
-        const streams = sounds.filter(s => s.type !== 'One-shots');
-        streams.forEach(sound => {
-             if (!sound.publicURL) return;
-             // Skip if already cached
-             if (this.streamCache.has(sound.id)) return;
-
-             const element = new Audio();
-             element.crossOrigin = "anonymous";
-             element.src = sound.publicURL;
-             element.loop = true;
-             element.preload = "auto"; // Request full buffer
-             (element as any).playsInline = true; // iOS helper
-             
-             // Trigger load to encourage the browser to fetch metadata/buffer
-             element.load();
-
-             this.streamCache.set(sound.id, { element, sourceNode: null });
-        });
+        // NOTE: We do NOT pre-load streams (BGM/Ambience) here anymore.
+        // Creating dozens of HTMLAudioElements at startup causes iOS to hit resource limits,
+        // resulting in total silence. Streams are now initialized lazily in playSound.
     }
 
     private async ensureAudioContextReady() {
@@ -145,17 +146,18 @@ export class SoundManager {
             await this.audioContext.resume();
         }
         // Ensure the master output element is playing the stream
-        // This acts as the carrier for all app audio
         if (this.airPlayAudioElement.paused) {
             try {
                 await this.airPlayAudioElement.play();
             } catch (e) {
+                // This might fail if not called from a user gesture, but the global unlocker catches most cases.
                 console.warn("Could not play master output element:", e);
             }
         }
     }
 
     public async playSound(sound: Sound) {
+        // Ensure context is ready
         await this.ensureAudioContextReady();
 
         switch (sound.type) {
@@ -199,9 +201,6 @@ export class SoundManager {
                 activeSound.audioElement.pause();
                 // Rewind to start for next playback
                 activeSound.audioElement.currentTime = 0;
-                
-                // IMPORTANT: Do NOT clear src or removeAttribute.
-                // Keeping the src allows the buffer to persist in the cache.
             }
 
             // Disconnect source from the mix
@@ -239,7 +238,7 @@ export class SoundManager {
     private startStreamedSound(sound: Sound, isBGM: boolean) {
         if (!sound.publicURL) return;
 
-        // Retrieve from cache (created in loadSounds) or create new fallback
+        // Lazy Load / Retrieve from cache
         let cached = this.streamCache.get(sound.id);
 
         if (!cached) {
@@ -249,12 +248,19 @@ export class SoundManager {
             element.loop = true;
             element.preload = "auto";
             (element as any).playsInline = true;
-            element.load();
+            
+            // Note: We don't call element.load() here aggressively if we aren't playing immediately,
+            // but since we are about to play, it's fine.
+            
             cached = { element, sourceNode: null };
             this.streamCache.set(sound.id, cached);
         }
 
         const { element } = cached;
+
+        // Ensure volume is reset (it might have been faded out previously?)
+        // Actually we control volume via gainNode, but element volume should be 1.
+        element.volume = 1; 
 
         // Prepare the Gain Node
         const gainNode = this.audioContext.createGain();
@@ -283,30 +289,28 @@ export class SoundManager {
 
                 this.activeSounds.set(sound.id, activeSound);
 
-                element.play().then(() => {
-                    this.fadeIn(activeSound, isBGM);
-                    this.updatePlayingStates();
-                }).catch(e => {
-                    // Fix for "The play() request was interrupted"
-                    if (e.name === 'AbortError') return;
-                    console.error("Playback failed:", e);
-                    this.stopImmediate(activeSound);
-                });
+                const playPromise = element.play();
+                if (playPromise !== undefined) {
+                    playPromise.then(() => {
+                        this.fadeIn(activeSound, isBGM);
+                        this.updatePlayingStates();
+                    }).catch(e => {
+                        if (e.name === 'AbortError') return; // Interrupted by stop, expected.
+                        console.error("Playback failed:", e);
+                        this.stopImmediate(activeSound);
+                    });
+                }
             } catch (e) {
                 console.error("Error connecting streamed sound:", e);
             }
         };
 
-        // On iOS, if we have data, we can try playing.
-        // If 'preload=auto' worked, readyState should be sufficient.
+        // iOS Logic: check readyState or wait for canplay
         if (element.readyState >= 3) { // HAVE_FUTURE_DATA
             connectAndPlay();
         } else {
             element.addEventListener('canplay', () => connectAndPlay(), { once: true });
-            // If it was paused/stopped previously, load() ensures it's ready to fetch again if needed
-            if (element.paused && element.readyState === 0) {
-                 element.load();
-            }
+            element.load(); // Kick off loading
         }
     }
 
@@ -314,7 +318,6 @@ export class SoundManager {
         const buffer = this.sfxBuffers.get(sound.id);
         if (!buffer) {
              this.loadSound(sound).then(() => {
-                // Ensure context wasn't suspended during load
                 this.ensureAudioContextReady().then(() => {
                     const retryBuffer = this.sfxBuffers.get(sound.id);
                     if (retryBuffer) this.playSfxInternal(sound, retryBuffer);
@@ -402,7 +405,7 @@ export class SoundManager {
             targetVol *= this.masterBGMVolume;
         }
         
-        // Smoothly interpolate
+        // Smooth interpolation
         activeSound.gainNode.gain.setTargetAtTime(targetVol, this.audioContext.currentTime, 0.05);
     }
 
@@ -418,11 +421,7 @@ export class SoundManager {
              this.activeSounds.forEach(s => s.audioElement?.play());
              
              if (this.airPlayAudioElement.paused) {
-                try {
-                    await this.airPlayAudioElement.play();
-                } catch (e) {
-                    console.warn("Could not play master output element:", e);
-                }
+                this.airPlayAudioElement.play().catch(e => console.warn("Global resume play failed:", e));
              }
         }
         this.updatePlayingStates();
