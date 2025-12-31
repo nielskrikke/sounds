@@ -20,6 +20,11 @@ interface ActiveSound {
     fadeInterval: number | null;
 }
 
+interface CachedStream {
+    element: HTMLAudioElement;
+    sourceNode: MediaElementAudioSourceNode | null;
+}
+
 export class SoundManager {
     private audioContext: AudioContext;
     private masterGain: GainNode;
@@ -29,6 +34,10 @@ export class SoundManager {
     public airPlayAudioElement: HTMLAudioElement;
 
     private sfxBuffers: Map<string, AudioBuffer> = new Map();
+    
+    // Cache for streamed audio elements (BGM/Ambience) to support pre-buffering
+    private streamCache: Map<string, CachedStream> = new Map();
+    
     private activeSounds: Map<string, ActiveSound> = new Map();
 
     private masterBGMVolume: number = 0.5;
@@ -68,6 +77,7 @@ export class SoundManager {
         this.airPlayAudioElement.crossOrigin = "anonymous";
         this.airPlayAudioElement.srcObject = this.destinationNode.stream;
         this.airPlayAudioElement.autoplay = true;
+        (this.airPlayAudioElement as any).playsInline = true; // Help on iOS
         // Explicitly unmute to ensure the stream plays
         this.airPlayAudioElement.muted = false;
         
@@ -90,7 +100,6 @@ export class SoundManager {
     
     public async loadSound(sound: Sound): Promise<void> {
         // Only pre-decode One-shots. 
-        // BGM/Ambience will be streamed on demand to save memory.
         if (sound.type === 'One-shots') {
             if (this.sfxBuffers.has(sound.id) || !sound.publicURL) return;
             try {
@@ -105,8 +114,30 @@ export class SoundManager {
     }
 
     public async loadSounds(sounds: Sound[]): Promise<void> {
+        // 1. One-shots: Decode into memory (Full Buffer)
         const sfx = sounds.filter(s => s.type === 'One-shots');
         await Promise.all(sfx.map(sound => this.loadSound(sound)));
+
+        // 2. Streams: Pre-initialize Audio Elements (Partial Buffer)
+        // This allows iOS to start buffering metadata and initial chunks so playback is instant.
+        const streams = sounds.filter(s => s.type !== 'One-shots');
+        streams.forEach(sound => {
+             if (!sound.publicURL) return;
+             // Skip if already cached
+             if (this.streamCache.has(sound.id)) return;
+
+             const element = new Audio();
+             element.crossOrigin = "anonymous";
+             element.src = sound.publicURL;
+             element.loop = true;
+             element.preload = "auto"; // Request full buffer
+             (element as any).playsInline = true; // iOS helper
+             
+             // Trigger load to encourage the browser to fetch metadata/buffer
+             element.load();
+
+             this.streamCache.set(sound.id, { element, sourceNode: null });
+        });
     }
 
     private async ensureAudioContextReady() {
@@ -156,31 +187,28 @@ export class SoundManager {
     private stopImmediate(activeSound: ActiveSound) {
         if (activeSound.fadeInterval) clearInterval(activeSound.fadeInterval);
         
-        // Stop sources first
         try {
+            // Stop One-shots (Buffered)
             if (activeSound.bufferSource) {
                 activeSound.bufferSource.stop();
-            }
-            if (activeSound.audioElement) {
-                activeSound.audioElement.pause();
-            }
-        } catch (e) {
-            // Ignore errors if already stopped or invalid state
-        }
-
-        // Disconnect nodes
-        try {
-            if (activeSound.bufferSource) {
                 activeSound.bufferSource.disconnect();
             }
+
+            // Stop Streams (Elements)
+            if (activeSound.audioElement) {
+                activeSound.audioElement.pause();
+                // Rewind to start for next playback
+                activeSound.audioElement.currentTime = 0;
+                
+                // IMPORTANT: Do NOT clear src or removeAttribute.
+                // Keeping the src allows the buffer to persist in the cache.
+            }
+
+            // Disconnect source from the mix
             if (activeSound.mediaElementSource) {
                 activeSound.mediaElementSource.disconnect();
             }
-            if (activeSound.audioElement) {
-                // Clean up audio element to prevent memory leaks and audio holding
-                activeSound.audioElement.removeAttribute('src');
-                activeSound.audioElement.load();
-            }
+
             activeSound.gainNode.disconnect();
         } catch (e) {
             console.error("Error disconnecting sound nodes:", e);
@@ -211,47 +239,75 @@ export class SoundManager {
     private startStreamedSound(sound: Sound, isBGM: boolean) {
         if (!sound.publicURL) return;
 
-        const element = new Audio(sound.publicURL);
-        element.loop = true;
-        element.crossOrigin = "anonymous"; // Critical for createMediaElementSource
-        
-        // Create WebAudio nodes
-        // Source -> Gain -> MasterGain
-        let source: MediaElementAudioSourceNode | undefined;
-        try {
-            source = this.audioContext.createMediaElementSource(element);
-        } catch (e) {
-            console.error("Failed to create media element source (likely CORS issue):", e);
-            return;
+        // Retrieve from cache (created in loadSounds) or create new fallback
+        let cached = this.streamCache.get(sound.id);
+
+        if (!cached) {
+            const element = new Audio();
+            element.crossOrigin = "anonymous";
+            element.src = sound.publicURL;
+            element.loop = true;
+            element.preload = "auto";
+            (element as any).playsInline = true;
+            element.load();
+            cached = { element, sourceNode: null };
+            this.streamCache.set(sound.id, cached);
         }
 
-        const gainNode = this.audioContext.createGain();
-        gainNode.gain.value = 0; // Start silent for fade-in
+        const { element } = cached;
 
-        source.connect(gainNode);
+        // Prepare the Gain Node
+        const gainNode = this.audioContext.createGain();
+        gainNode.gain.value = 0; // Silent start for fade-in
         gainNode.connect(this.masterGain);
 
-        const activeSound: ActiveSound = {
-            id: sound.id,
-            sound: sound,
-            gainNode: gainNode,
-            audioElement: element,
-            mediaElementSource: source,
-            volumeMultiplier: 0,
-            fadeInterval: null
+        const connectAndPlay = () => {
+            try {
+                // Ensure MediaElementSourceNode exists (singleton per element)
+                if (!cached!.sourceNode) {
+                    cached!.sourceNode = this.audioContext.createMediaElementSource(element);
+                }
+
+                // Connect to the new gain node for this session
+                cached!.sourceNode.connect(gainNode);
+
+                const activeSound: ActiveSound = {
+                    id: sound.id,
+                    sound: sound,
+                    gainNode: gainNode,
+                    audioElement: element,
+                    mediaElementSource: cached!.sourceNode,
+                    volumeMultiplier: 0,
+                    fadeInterval: null
+                };
+
+                this.activeSounds.set(sound.id, activeSound);
+
+                element.play().then(() => {
+                    this.fadeIn(activeSound, isBGM);
+                    this.updatePlayingStates();
+                }).catch(e => {
+                    // Fix for "The play() request was interrupted"
+                    if (e.name === 'AbortError') return;
+                    console.error("Playback failed:", e);
+                    this.stopImmediate(activeSound);
+                });
+            } catch (e) {
+                console.error("Error connecting streamed sound:", e);
+            }
         };
 
-        this.activeSounds.set(sound.id, activeSound);
-        
-        element.play().then(() => {
-            this.fadeIn(activeSound, isBGM);
-            this.updatePlayingStates();
-        }).catch(e => {
-            // Fix for "The play() request was interrupted by a call to pause()"
-            if (e.name === 'AbortError') return;
-            console.error("Playback failed:", e);
-            this.stopImmediate(activeSound);
-        });
+        // On iOS, if we have data, we can try playing.
+        // If 'preload=auto' worked, readyState should be sufficient.
+        if (element.readyState >= 3) { // HAVE_FUTURE_DATA
+            connectAndPlay();
+        } else {
+            element.addEventListener('canplay', () => connectAndPlay(), { once: true });
+            // If it was paused/stopped previously, load() ensures it's ready to fetch again if needed
+            if (element.paused && element.readyState === 0) {
+                 element.load();
+            }
+        }
     }
 
     private playSoundEffect(sound: Sound) {
@@ -267,9 +323,6 @@ export class SoundManager {
             return;
         }
         
-        // Allow overlapping SFX, but track the latest one by ID for stopping capability
-        // If we wanted polyphony for the *same* sound ID, we'd need a generated ID.
-        // For now, restarting the same SFX stops the previous one to keep it simple.
         if (this.activeSounds.has(sound.id)) {
              this.stopImmediate(this.activeSounds.get(sound.id)!);
         }
@@ -284,7 +337,6 @@ export class SoundManager {
         const gainNode = this.audioContext.createGain();
         gainNode.gain.value = sound.volume;
 
-        // Connect SFX to the MasterMixer, which feeds the AirPlay destination
         source.connect(gainNode);
         gainNode.connect(this.masterGain);
         
@@ -300,7 +352,6 @@ export class SoundManager {
         this.activeSounds.set(sound.id, activeSound);
 
         source.onended = () => {
-            // Only remove if it hasn't been replaced
             const current = this.activeSounds.get(sound.id);
             if (current === activeSound) {
                 this.stopImmediate(activeSound);
@@ -358,20 +409,14 @@ export class SoundManager {
     // --- Global Controls ---
 
     public async toggleGlobalPlayPause() {
-        // Do not call ensureAudioContextReady() here, as it forces resume.
-        // We want to toggle based on the current state.
-
         if (this.audioContext.state === 'running') {
-             // Suspend context and pause elements
              await this.audioContext.suspend();
              this.activeSounds.forEach(s => s.audioElement?.pause());
              this.airPlayAudioElement.pause();
         } else {
-            // Resume context and play elements
             await this.audioContext.resume();
              this.activeSounds.forEach(s => s.audioElement?.play());
              
-             // Ensure master output is playing (needed for AirPlay/output to work)
              if (this.airPlayAudioElement.paused) {
                 try {
                     await this.airPlayAudioElement.play();
@@ -384,7 +429,6 @@ export class SoundManager {
     }
 
     public stopAllSounds() {
-        // Clone array to iterate safely while deleting
         Array.from(this.activeSounds.values()).forEach(s => this.stopImmediate(s));
     }
 
