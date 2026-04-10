@@ -29,22 +29,22 @@ const SoundListSection: React.FC<{
 
   return (
     <section className="mb-4 last:mb-0">
-      <h3 className="text-xl font-medieval text-amber-400 mb-2 py-2">{title}</h3>
+      <h3 className="text-xl font-serif font-bold text-dnd-gold mb-2 py-2">{title}</h3>
       <ul className="space-y-2">
         {sounds.map(sound => {
           const isConfirming = confirmDeleteId === sound.id;
           return (
-            <li key={sound.id} className="flex justify-between items-center bg-stone-800/50 hover:bg-stone-700/50 border border-stone-700/30 p-3 rounded-xl group min-h-[4.5rem] transition-all duration-200">
+            <li key={sound.id} className="flex justify-between items-center bg-black/40 hover:bg-white/5 border border-white/5 p-3 rounded-xl group min-h-[4.5rem] transition-all duration-200">
               <div className="truncate pr-4 flex-grow">
-                <p className="text-white font-medium truncate">{sound.name}</p>
-                <div className="flex items-center gap-2 text-xs text-stone-400 truncate mt-0.5">
-                    {sound.include_in_all_scenes && <Globe size={12} className="text-sky-400/70" />}
+                <p className="text-dnd-text font-medium truncate">{sound.name}</p>
+                <div className="flex items-center gap-2 text-xs text-dnd-text/40 truncate mt-0.5">
+                    {sound.include_in_all_scenes && <Globe size={12} className="text-dnd-gold/60" />}
                     <span>Scenes: {sound.include_in_all_scenes ? 'All' : sound.scenes?.map(s => s.name).join(', ') || 'None'}</span>
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 {!isConfirming && (
-                   <button onClick={() => onEditSound(sound)} className="p-2 text-stone-400 hover:text-white rounded-full hover:bg-stone-600 transition-colors" aria-label={`Edit ${sound.name}`}>
+                   <button onClick={() => onEditSound(sound)} className="p-2 text-dnd-text/40 hover:text-dnd-gold rounded-full hover:bg-white/5 transition-colors" aria-label={`Edit ${sound.name}`}>
                       <Edit size={18} />
                     </button>
                 )}
@@ -59,8 +59,8 @@ const SoundListSection: React.FC<{
                     }}
                     className={`p-2 rounded-full transition-all duration-200 flex items-center justify-center gap-2 ${
                         isConfirming 
-                        ? "bg-red-600 text-white hover:bg-red-700 px-4 py-2 w-auto rounded-md animate-pulse" 
-                        : "text-red-400 hover:text-red-300 hover:bg-stone-600"
+                        ? "bg-dnd-red text-white hover:brightness-110 px-4 py-2 w-auto rounded-md animate-pulse" 
+                        : "text-dnd-red/60 hover:text-dnd-red hover:bg-white/5"
                     }`}
                     aria-label={isConfirming ? "Confirm Delete" : "Delete Sound"}
                 >
@@ -76,7 +76,7 @@ const SoundListSection: React.FC<{
                 {isConfirming && (
                     <button 
                         onClick={() => setConfirmDeleteId(null)}
-                        className="p-2 text-stone-400 hover:text-white rounded-full hover:bg-stone-600 transition-colors"
+                        className="p-2 text-dnd-text/40 hover:text-dnd-gold rounded-full hover:bg-white/5 transition-colors"
                     >
                         <X size={18} />
                     </button>
@@ -192,32 +192,32 @@ const AddSoundForm: React.FC<{
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-            <label className="block text-sm font-medium text-stone-300 mb-1">Sound File</label>
-            <input type="file" accept="audio/*" onChange={(e) => setFile(e.target.files?.[0] || null)} required className="block w-full text-sm text-stone-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-amber-600 file:text-stone-900 hover:file:bg-amber-500 file:transition-colors cursor-pointer bg-stone-800/40 rounded-xl border border-stone-700/50"/>
+            <label className="block text-xs font-black uppercase tracking-widest text-dnd-text/40 mb-2">Sound File</label>
+            <input type="file" accept="audio/*" onChange={(e) => setFile(e.target.files?.[0] || null)} required className="block w-full text-sm text-dnd-text/60 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:uppercase file:tracking-widest file:bg-dnd-gold file:text-black hover:file:brightness-110 file:transition-all cursor-pointer bg-black/40 rounded-xl border border-white/5"/>
             </div>
             <div>
-            <label htmlFor="name" className="block text-sm font-medium text-stone-300">Sound Name</label>
-            <input type="text" id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder={file?.name.replace(/\.[^/.]+$/, "") || "Enter name"} className="mt-1 block w-full bg-stone-800/40 border border-stone-600/50 rounded-xl p-2 text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all"/>
+            <label htmlFor="name" className="block text-xs font-black uppercase tracking-widest text-dnd-text/40 mb-1">Sound Name</label>
+            <input type="text" id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder={file?.name.replace(/\.[^/.]+$/, "") || "Enter name"} className="mt-1 block w-full bg-black/40 border border-white/10 rounded-xl p-3 text-dnd-text placeholder-dnd-text/20 focus:border-dnd-gold focus:ring-1 focus:ring-dnd-gold outline-none transition-all"/>
             </div>
             
             <div>
-            <label className="block text-sm font-medium text-stone-300 mb-2">Scenes</label>
-            <div className="flex items-center mb-2">
-                <input type="checkbox" id="includeInAllScenes" checked={includeInAllScenes} onChange={(e) => setIncludeInAllScenes(e.target.checked)} className="h-4 w-4 rounded accent-amber-500 bg-stone-700 border-stone-600" />
-                <label htmlFor="includeInAllScenes" className="ml-2 text-sm text-amber-400 font-medium">Include in all scenes</label>
+            <label className="block text-xs font-black uppercase tracking-widest text-dnd-text/40 mb-2">Scenes</label>
+            <div className="flex items-center mb-3">
+                <input type="checkbox" id="includeInAllScenes" checked={includeInAllScenes} onChange={(e) => setIncludeInAllScenes(e.target.checked)} className="h-4 w-4 rounded accent-dnd-gold bg-black/40 border-white/10" />
+                <label htmlFor="includeInAllScenes" className="ml-2 text-sm text-dnd-gold font-bold uppercase tracking-wider">Include in all scenes</label>
             </div>
 
             {includeInAllScenes && (type === 'Background Music' || type === 'Ambience') && (
-                <div className="mb-3 p-3 bg-stone-800/40 rounded-xl border border-stone-700/50">
-                    <label className="block text-sm font-medium text-stone-300 mb-2">Global Atmosphere Levels (Default)</label>
+                <div className="mb-3 p-3 bg-black/40 rounded-xl border border-white/5">
+                    <label className="block text-xs font-black uppercase tracking-widest text-dnd-text/40 mb-3">Global Atmosphere Levels (Default)</label>
                     <div className="flex flex-wrap gap-x-4 gap-y-2">
                         {atmosphereLevels.map(level => (
-                            <label key={level} className="flex items-center text-sm text-stone-300 cursor-pointer hover:text-white">
+                            <label key={level} className="flex items-center text-sm text-dnd-text/60 cursor-pointer hover:text-dnd-gold transition-colors">
                                 <input 
                                     type="checkbox" 
                                     checked={globalAtmosphere.includes(level)} 
                                     onChange={() => handleGlobalAtmosphereChange(level)}
-                                    className="h-4 w-4 rounded accent-amber-500 bg-stone-700 border-stone-600"
+                                    className="h-4 w-4 rounded accent-dnd-gold bg-black/40 border-white/10"
                                 />
                                 <span className="ml-1.5">{level}</span>
                             </label>
@@ -226,26 +226,26 @@ const AddSoundForm: React.FC<{
                 </div>
             )}
 
-            <div className="bg-stone-800/40 border border-stone-700/50 rounded-xl p-2 max-h-32 overflow-y-auto grid grid-cols-2 gap-2 custom-scrollbar">
+            <div className="bg-black/40 border border-white/5 rounded-xl p-3 max-h-32 overflow-y-auto grid grid-cols-2 gap-2 custom-scrollbar">
                 {allScenes.map(scene => (
-                    <label key={scene.id} className={`flex items-center text-sm text-stone-300 ${includeInAllScenes ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:text-white'}`}>
+                    <label key={scene.id} className={`flex items-center text-sm text-dnd-text/60 ${includeInAllScenes ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:text-dnd-gold transition-colors'}`}>
                         <input 
                             type="checkbox" 
                             checked={selectedSceneIds.has(scene.id)}
                             onChange={() => handleSceneToggle(scene.id)}
                             disabled={includeInAllScenes}
-                            className="h-3 w-3 rounded accent-amber-500 mr-2 bg-stone-600 border-stone-500"
+                            className="h-3 w-3 rounded accent-dnd-gold mr-2 bg-black/40 border-white/10"
                         />
-                        {scene.name}
+                        <span className="truncate">{scene.name}</span>
                     </label>
                 ))}
-                {allScenes.length === 0 && <p className="text-xs text-stone-500 col-span-2 text-center">No scenes available. Create one first.</p>}
+                {allScenes.length === 0 && <p className="text-xs text-dnd-text/20 col-span-2 text-center italic">No scenes available. Create one first.</p>}
             </div>
             </div>
 
             <div>
-            <label htmlFor="type" className="block text-sm font-medium text-stone-300">Type</label>
-            <select id="type" value={type} onChange={(e) => setType(e.target.value as SoundType)} className="mt-1 block w-full bg-stone-800/40 border border-stone-600/50 rounded-xl p-2 text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none">
+            <label htmlFor="type" className="block text-xs font-black uppercase tracking-widest text-dnd-text/40 mb-1">Type</label>
+            <select id="type" value={type} onChange={(e) => setType(e.target.value as SoundType)} className="mt-1 block w-full bg-black/40 border border-white/10 rounded-xl p-3 text-dnd-text focus:border-dnd-gold outline-none">
                 <option>Background Music</option>
                 <option>Ambience</option>
                 <option>One-shots</option>
@@ -254,30 +254,30 @@ const AddSoundForm: React.FC<{
             <div className="flex items-center gap-x-6">
             {type !== 'One-shots' && (
                 <div className="flex items-center">
-                <input type="checkbox" id="loop" checked={loop} onChange={(e) => setLoop(e.target.checked)} className="h-4 w-4 rounded accent-amber-500 bg-stone-700 border-stone-600" />
-                <label htmlFor="loop" className="ml-2 text-sm text-stone-300">Loop</label>
+                <input type="checkbox" id="loop" checked={loop} onChange={(e) => setLoop(e.target.checked)} className="h-4 w-4 rounded accent-dnd-gold bg-black/40 border-white/10" />
+                <label htmlFor="loop" className="ml-2 text-sm text-dnd-text/60">Loop</label>
                 </div>
             )}
             <div className="flex items-center">
-                <input type="checkbox" id="favorite" checked={favorite} onChange={(e) => setFavorite(e.target.checked)} className="h-4 w-4 rounded accent-amber-500 bg-stone-700 border-stone-600" />
-                <label htmlFor="favorite" className="ml-2 text-sm text-stone-300">Favorite</label>
+                <input type="checkbox" id="favorite" checked={favorite} onChange={(e) => setFavorite(e.target.checked)} className="h-4 w-4 rounded accent-dnd-gold bg-black/40 border-white/10" />
+                <label htmlFor="favorite" className="ml-2 text-sm text-dnd-text/60">Favorite</label>
             </div>
             </div>
             
             {(type === 'Background Music' || type === 'Ambience') && scenesToConfigure.length > 0 && (
-                <div className="space-y-3 p-3 bg-stone-800/40 rounded-xl max-h-48 overflow-y-auto border border-stone-700/50 custom-scrollbar">
-                    <label className="block text-sm font-medium text-stone-300">Atmosphere Levels (Per Scene)</label>
+                <div className="space-y-3 p-3 bg-black/40 rounded-xl max-h-48 overflow-y-auto border border-white/5 custom-scrollbar">
+                    <label className="block text-xs font-black uppercase tracking-widest text-dnd-text/40">Atmosphere Levels (Per Scene)</label>
                     {scenesToConfigure.map(scene => (
-                        <div key={scene.id}>
-                            <p className="font-semibold text-sm text-amber-400">{scene.name}</p>
-                            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                        <div key={scene.id} className="border-t border-white/5 pt-2 first:border-0 first:pt-0">
+                            <p className="font-bold text-xs text-dnd-gold uppercase tracking-wider mb-1">{scene.name}</p>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1">
                                 {atmosphereLevels.map(level => (
-                                    <label key={level} className="flex items-center text-sm text-stone-300">
+                                    <label key={level} className="flex items-center text-sm text-dnd-text/60 hover:text-dnd-text cursor-pointer transition-colors">
                                         <input 
                                             type="checkbox" 
                                             checked={(sceneAtmospheres[scene.id] || []).includes(level)} 
                                             onChange={() => handleSceneAtmosphereChange(scene.id, level)}
-                                            className="h-4 w-4 rounded accent-amber-500 bg-stone-700 border-stone-600"
+                                            className="h-4 w-4 rounded accent-dnd-gold bg-black/40 border-white/10"
                                         />
                                         <span className="ml-1.5">{level}</span>
                                     </label>
@@ -289,24 +289,24 @@ const AddSoundForm: React.FC<{
             )}
             
             {type === 'Background Music' && (
-                <div className="space-y-2 pt-2">
-                <p className="text-sm font-medium text-stone-300">Optional Tags for Filtering</p>
-                <input type="text" value={categoryTag} onChange={e => setCategoryTag(e.target.value)} placeholder="Category Tag (e.g., Combat)" className="block w-full bg-stone-800/40 border border-stone-600/50 rounded-xl p-2 text-white focus:border-amber-500 outline-none"/>
-                <input type="text" value={moodTag} onChange={e => setMoodTag(e.target.value)} placeholder="Mood Tag (e.g., Tense)" className="block w-full bg-stone-800/40 border border-stone-600/50 rounded-xl p-2 text-white focus:border-amber-500 outline-none"/>
-                <input type="text" value={locationTag} onChange={e => setLocationTag(e.target.value)} placeholder="Location Tag (e.g., Forest)" className="block w-full bg-stone-800/40 border border-stone-600/50 rounded-xl p-2 text-white focus:border-amber-500 outline-none"/>
+                <div className="space-y-3 pt-2">
+                <p className="text-xs font-black uppercase tracking-widest text-dnd-text/40">Optional Tags for Filtering</p>
+                <input type="text" value={categoryTag} onChange={e => setCategoryTag(e.target.value)} placeholder="Category Tag (e.g., Combat)" className="block w-full bg-black/40 border border-white/10 rounded-xl p-3 text-dnd-text placeholder-dnd-text/20 focus:border-dnd-gold outline-none transition-all"/>
+                <input type="text" value={moodTag} onChange={e => setMoodTag(e.target.value)} placeholder="Mood Tag (e.g., Tense)" className="block w-full bg-black/40 border border-white/10 rounded-xl p-3 text-dnd-text placeholder-dnd-text/20 focus:border-dnd-gold outline-none transition-all"/>
+                <input type="text" value={locationTag} onChange={e => setLocationTag(e.target.value)} placeholder="Location Tag (e.g., Forest)" className="block w-full bg-black/40 border border-white/10 rounded-xl p-3 text-dnd-text placeholder-dnd-text/20 focus:border-dnd-gold outline-none transition-all"/>
                 </div>
             )}
             {type === 'One-shots' && (
-            <div className="space-y-2">
-                <input type="text" value={typeTag} onChange={e => setTypeTag(e.target.value)} placeholder="Type Tag (e.g., Sword, Magic)" className="block w-full bg-stone-800/40 border border-stone-600/50 rounded-xl p-2 text-white focus:border-amber-500 outline-none"/>
+            <div className="space-y-3">
+                <input type="text" value={typeTag} onChange={e => setTypeTag(e.target.value)} placeholder="Type Tag (e.g., Sword, Magic)" className="block w-full bg-black/40 border border-white/10 rounded-xl p-3 text-dnd-text placeholder-dnd-text/20 focus:border-dnd-gold outline-none transition-all"/>
             </div>
             )}
             <div>
-            <label htmlFor="volume" className="block text-sm font-medium text-stone-300">Default Volume: {Math.round(volume * 100)}%</label>
-            <input type="range" id="volume" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} className="w-full h-2 bg-stone-700 rounded-lg appearance-none cursor-pointer accent-amber-500" />
+            <label htmlFor="volume" className="block text-xs font-black uppercase tracking-widest text-dnd-text/40 mb-2">Default Volume: {Math.round(volume * 100)}%</label>
+            <input type="range" id="volume" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-dnd-gold" />
             </div>
-            <div className="flex justify-end gap-4 pt-4">
-            <button type="submit" disabled={isSubmitting} className="py-2 px-6 rounded-xl text-white bg-amber-600 hover:bg-amber-500 disabled:bg-stone-500 disabled:cursor-not-allowed shadow-lg hover:shadow-amber-900/20 transition-all">
+            <div className="flex justify-end gap-4 pt-6">
+            <button type="submit" disabled={isSubmitting} className="py-2 px-8 rounded-xl text-black bg-dnd-gold font-black uppercase tracking-widest hover:brightness-110 disabled:bg-white/10 disabled:text-dnd-text/40 disabled:cursor-not-allowed shadow-lg transition-all">
                 {isSubmitting ? 'Uploading...' : 'Add Sound'}
             </button>
             </div>
@@ -485,28 +485,28 @@ const EditSoundForm: React.FC<{
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-            <label htmlFor="edit-name" className="block text-sm font-medium text-stone-300">Sound Name</label>
-            <input type="text" id="edit-name" value={name} onChange={(e) => setName(e.target.value)} required className="mt-1 block w-full bg-stone-800/40 border border-stone-600/50 rounded-xl p-2 text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all"/>
+            <label htmlFor="edit-name" className="block text-xs font-black uppercase tracking-widest text-dnd-text/40 mb-1">Sound Name</label>
+            <input type="text" id="edit-name" value={name} onChange={(e) => setName(e.target.value)} required className="mt-1 block w-full bg-black/40 border border-white/10 rounded-xl p-3 text-dnd-text placeholder-dnd-text/20 focus:border-dnd-gold focus:ring-1 focus:ring-dnd-gold outline-none transition-all"/>
             </div>
             
             <div>
-            <label className="block text-sm font-medium text-stone-300 mb-2">Scenes</label>
-            <div className="flex items-center mb-2">
-                <input type="checkbox" id="editIncludeInAllScenes" checked={includeInAllScenes} onChange={(e) => setIncludeInAllScenes(e.target.checked)} className="h-4 w-4 rounded accent-amber-500 bg-stone-700 border-stone-600" />
-                <label htmlFor="editIncludeInAllScenes" className="ml-2 text-sm text-amber-400 font-medium">Include in all scenes</label>
+            <label className="block text-xs font-black uppercase tracking-widest text-dnd-text/40 mb-2">Scenes</label>
+            <div className="flex items-center mb-3">
+                <input type="checkbox" id="editIncludeInAllScenes" checked={includeInAllScenes} onChange={(e) => setIncludeInAllScenes(e.target.checked)} className="h-4 w-4 rounded accent-dnd-gold bg-black/40 border-white/10" />
+                <label htmlFor="editIncludeInAllScenes" className="ml-2 text-sm text-dnd-gold font-bold uppercase tracking-wider">Include in all scenes</label>
             </div>
 
             {includeInAllScenes && (type === 'Background Music' || type === 'Ambience') && (
-                <div className="mb-3 p-3 bg-stone-800/40 rounded-xl border border-stone-700/50">
-                    <label className="block text-sm font-medium text-stone-300 mb-2">Global Atmosphere Levels (Default)</label>
+                <div className="mb-3 p-3 bg-black/40 rounded-xl border border-white/5">
+                    <label className="block text-xs font-black uppercase tracking-widest text-dnd-text/40 mb-3">Global Atmosphere Levels (Default)</label>
                     <div className="flex flex-wrap gap-x-4 gap-y-2">
                         {atmosphereLevels.map(level => (
-                            <label key={level} className="flex items-center text-sm text-stone-300 cursor-pointer hover:text-white">
+                            <label key={level} className="flex items-center text-sm text-dnd-text/60 cursor-pointer hover:text-dnd-gold transition-colors">
                                 <input 
                                     type="checkbox" 
                                     checked={globalAtmosphere.includes(level)} 
                                     onChange={() => handleGlobalAtmosphereChange(level)}
-                                    className="h-4 w-4 rounded accent-amber-500 bg-stone-700 border-stone-600"
+                                    className="h-4 w-4 rounded accent-dnd-gold bg-black/40 border-white/10"
                                 />
                                 <span className="ml-1.5">{level}</span>
                             </label>
@@ -515,26 +515,26 @@ const EditSoundForm: React.FC<{
                 </div>
             )}
 
-            <div className="bg-stone-800/40 border border-stone-700/50 rounded-xl p-2 max-h-32 overflow-y-auto grid grid-cols-2 gap-2 custom-scrollbar">
+            <div className="bg-black/40 border border-white/5 rounded-xl p-3 max-h-32 overflow-y-auto grid grid-cols-2 gap-2 custom-scrollbar">
                 {allScenes.map(scene => (
-                    <label key={scene.id} className={`flex items-center text-sm text-stone-300 ${includeInAllScenes ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:text-white'}`}>
+                    <label key={scene.id} className={`flex items-center text-sm text-dnd-text/60 ${includeInAllScenes ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:text-dnd-gold transition-colors'}`}>
                         <input 
                             type="checkbox" 
                             checked={selectedSceneIds.has(scene.id)}
                             onChange={() => handleSceneToggle(scene.id)}
                             disabled={includeInAllScenes}
-                            className="h-3 w-3 rounded accent-amber-500 mr-2 bg-stone-600 border-stone-500"
+                            className="h-3 w-3 rounded accent-dnd-gold mr-2 bg-black/40 border-white/10"
                         />
-                        {scene.name}
+                        <span className="truncate">{scene.name}</span>
                     </label>
                 ))}
-                {allScenes.length === 0 && <p className="text-xs text-stone-500 col-span-2 text-center">No scenes available. Create one first.</p>}
+                {allScenes.length === 0 && <p className="text-xs text-dnd-text/20 col-span-2 text-center italic">No scenes available. Create one first.</p>}
             </div>
             </div>
             
             <div>
-            <label htmlFor="edit-type" className="block text-sm font-medium text-stone-300">Type</label>
-            <select id="edit-type" value={type} onChange={(e) => setType(e.target.value as SoundType)} className="mt-1 block w-full bg-stone-800/40 border border-stone-600/50 rounded-xl p-2 text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none">
+            <label htmlFor="edit-type" className="block text-xs font-black uppercase tracking-widest text-dnd-text/40 mb-1">Type</label>
+            <select id="edit-type" value={type} onChange={(e) => setType(e.target.value as SoundType)} className="mt-1 block w-full bg-black/40 border border-white/10 rounded-xl p-3 text-dnd-text focus:border-dnd-gold outline-none">
                 <option>Background Music</option>
                 <option>Ambience</option>
                 <option>One-shots</option>
@@ -543,30 +543,30 @@ const EditSoundForm: React.FC<{
             <div className="flex items-center gap-x-6">
             {type !== 'One-shots' && (
                 <div className="flex items-center">
-                <input type="checkbox" id="edit-loop" checked={loop} onChange={(e) => setLoop(e.target.checked)} className="h-4 w-4 rounded accent-amber-500 bg-stone-700 border-stone-600" />
-                <label htmlFor="edit-loop" className="ml-2 text-sm text-stone-300">Loop</label>
+                <input type="checkbox" id="edit-loop" checked={loop} onChange={(e) => setLoop(e.target.checked)} className="h-4 w-4 rounded accent-dnd-gold bg-black/40 border-white/10" />
+                <label htmlFor="edit-loop" className="ml-2 text-sm text-dnd-text/60">Loop</label>
                 </div>
             )}
             <div className="flex items-center">
-                <input type="checkbox" id="edit-favorite" checked={favorite} onChange={(e) => setFavorite(e.target.checked)} className="h-4 w-4 rounded accent-amber-500 bg-stone-700 border-stone-600" />
-                <label htmlFor="edit-favorite" className="ml-2 text-sm text-stone-300">Favorite</label>
+                <input type="checkbox" id="edit-favorite" checked={favorite} onChange={(e) => setFavorite(e.target.checked)} className="h-4 w-4 rounded accent-dnd-gold bg-black/40 border-white/10" />
+                <label htmlFor="edit-favorite" className="ml-2 text-sm text-dnd-text/60">Favorite</label>
             </div>
             </div>
             
             {(type === 'Background Music' || type === 'Ambience') && scenesToConfigure.length > 0 && (
-                <div className="space-y-3 p-3 bg-stone-800/40 rounded-xl max-h-48 overflow-y-auto border border-stone-700/50 custom-scrollbar">
-                    <label className="block text-sm font-medium text-stone-300">Atmosphere Levels (Per Scene)</label>
+                <div className="space-y-3 p-3 bg-black/40 rounded-xl max-h-48 overflow-y-auto border border-white/5 custom-scrollbar">
+                    <label className="block text-xs font-black uppercase tracking-widest text-dnd-text/40">Atmosphere Levels (Per Scene)</label>
                     {scenesToConfigure.map(scene => (
-                        <div key={scene.id}>
-                            <p className="font-semibold text-sm text-amber-400">{scene.name}</p>
-                            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                        <div key={scene.id} className="border-t border-white/5 pt-2 first:border-0 first:pt-0">
+                            <p className="font-bold text-xs text-dnd-gold uppercase tracking-wider mb-1">{scene.name}</p>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1">
                                 {atmosphereLevels.map(level => (
-                                    <label key={level} className="flex items-center text-sm text-stone-300">
+                                    <label key={level} className="flex items-center text-sm text-dnd-text/60 hover:text-dnd-text cursor-pointer transition-colors">
                                         <input 
                                             type="checkbox" 
                                             checked={(sceneAtmospheres[scene.id] || []).includes(level)} 
                                             onChange={() => handleSceneAtmosphereChange(scene.id, level)}
-                                            className="h-4 w-4 rounded accent-amber-500 bg-stone-700 border-stone-600"
+                                            className="h-4 w-4 rounded accent-dnd-gold bg-black/40 border-white/10"
                                         />
                                         <span className="ml-1.5">{level}</span>
                                     </label>
@@ -578,34 +578,34 @@ const EditSoundForm: React.FC<{
             )}
 
             {type === 'Background Music' && (
-                <div className="space-y-2 pt-2">
-                <p className="text-sm font-medium text-stone-300">Optional Tags for Filtering</p>
-                <input type="text" value={categoryTag} onChange={e => setCategoryTag(e.target.value)} placeholder="Category Tag (e.g., Combat)" className="block w-full bg-stone-800/40 border border-stone-600/50 rounded-xl p-2 text-white focus:border-amber-500 outline-none"/>
-                <input type="text" value={moodTag} onChange={e => setMoodTag(e.target.value)} placeholder="Mood Tag (e.g., Tense)" className="block w-full bg-stone-800/40 border border-stone-600/50 rounded-xl p-2 text-white focus:border-amber-500 outline-none"/>
-                <input type="text" value={locationTag} onChange={e => setLocationTag(e.target.value)} placeholder="Location Tag (e.g., Forest)" className="block w-full bg-stone-800/40 border border-stone-600/50 rounded-xl p-2 text-white focus:border-amber-500 outline-none"/>
+                <div className="space-y-3 pt-2">
+                <p className="text-xs font-black uppercase tracking-widest text-dnd-text/40">Optional Tags for Filtering</p>
+                <input type="text" value={categoryTag} onChange={e => setCategoryTag(e.target.value)} placeholder="Category Tag (e.g., Combat)" className="block w-full bg-black/40 border border-white/10 rounded-xl p-3 text-dnd-text placeholder-dnd-text/20 focus:border-dnd-gold outline-none transition-all"/>
+                <input type="text" value={moodTag} onChange={e => setMoodTag(e.target.value)} placeholder="Mood Tag (e.g., Tense)" className="block w-full bg-black/40 border border-white/10 rounded-xl p-3 text-dnd-text placeholder-dnd-text/20 focus:border-dnd-gold outline-none transition-all"/>
+                <input type="text" value={locationTag} onChange={e => setLocationTag(e.target.value)} placeholder="Location Tag (e.g., Forest)" className="block w-full bg-black/40 border border-white/10 rounded-xl p-3 text-dnd-text placeholder-dnd-text/20 focus:border-dnd-gold outline-none transition-all"/>
                 </div>
             )}
             {type === 'One-shots' && (
-            <div className="space-y-2">
-                <input type="text" value={typeTag} onChange={e => setTypeTag(e.target.value)} placeholder="Type Tag (e.g., Sword, Magic)" className="block w-full bg-stone-800/40 border border-stone-600/50 rounded-xl p-2 text-white focus:border-amber-500 outline-none"/>
+            <div className="space-y-3">
+                <input type="text" value={typeTag} onChange={e => setTypeTag(e.target.value)} placeholder="Type Tag (e.g., Sword, Magic)" className="block w-full bg-black/40 border border-white/10 rounded-xl p-3 text-dnd-text placeholder-dnd-text/20 focus:border-dnd-gold outline-none transition-all"/>
             </div>
             )}
             <div>
                 <div className="flex items-center justify-between">
-                <label htmlFor="edit-volume" className="block text-sm font-medium text-stone-300">Default Volume: {Math.round(volume * 100)}%</label>
+                <label htmlFor="edit-volume" className="block text-xs font-black uppercase tracking-widest text-dnd-text/40 mb-2">Default Volume: {Math.round(volume * 100)}%</label>
                     <button
                     type="button"
                     onClick={handlePreviewToggle}
-                    className="p-2 rounded-full text-stone-300 hover:bg-stone-700 hover:text-white transition-colors"
+                    className="p-2 rounded-full text-dnd-text/40 hover:bg-white/5 hover:text-dnd-gold transition-colors"
                     aria-label={isPreviewing ? "Pause preview" : "Play preview"}
                 >
                     {isPreviewing ? <Pause size={18} /> : <Play size={18} />}
                 </button>
                 </div>
-            <input type="range" id="edit-volume" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} className="w-full h-2 bg-stone-700 rounded-lg appearance-none cursor-pointer accent-amber-500 mt-2" />
+            <input type="range" id="edit-volume" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-dnd-gold mt-2" />
             </div>
             <div className="flex justify-end gap-4 pt-4">
-            <button type="submit" disabled={isSubmitting} className="py-2 px-6 rounded-xl text-white bg-amber-600 hover:bg-amber-500 disabled:bg-stone-500 shadow-lg hover:shadow-amber-900/20 transition-all">
+            <button type="submit" disabled={isSubmitting} className="py-2 px-8 rounded-xl text-black bg-dnd-gold font-black uppercase tracking-widest hover:brightness-110 disabled:bg-white/10 disabled:text-dnd-text/40 shadow-lg transition-all">
                 {isSubmitting ? 'Saving...' : 'Save Changes'}
             </button>
             </div>
@@ -660,7 +660,7 @@ export const SoundManagerModal: React.FC<SoundManagerModalProps> = ({
       setEditingSound(null);
   }
 
-  const containerClasses = `relative bg-stone-900/60 backdrop-blur-2xl border border-stone-700/50 shadow-2xl rounded-3xl p-8 m-4 flex flex-col transition-all duration-300 ${isOpen ? 'animate-modal-in' : 'animate-modal-out'}`;
+  const containerClasses = `relative bg-dnd-panel/80 backdrop-blur-2xl border border-white/5 shadow-2xl rounded-3xl p-8 m-4 flex flex-col transition-all duration-300 ${isOpen ? 'animate-modal-in' : 'animate-modal-out'}`;
   
   // Dynamic width/height styles based on view
   const viewStyles = view === 'list' 
@@ -670,7 +670,7 @@ export const SoundManagerModal: React.FC<SoundManagerModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div 
-        className={`absolute inset-0 bg-stone-950/40 backdrop-blur-sm transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}
+        className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}
         onClick={handleClose}
       />
 
@@ -678,12 +678,12 @@ export const SoundManagerModal: React.FC<SoundManagerModalProps> = ({
         {view === 'list' && (
             <>
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-3xl font-medieval font-bold text-white drop-shadow-sm">Manage Sounds</h2>
-                    <button onClick={handleClose} className="text-stone-400 hover:text-white transition-colors p-2 hover:bg-stone-700/50 rounded-full"><X size={24} /></button>
+                    <h2 className="text-3xl font-serif font-bold text-dnd-text drop-shadow-sm">Manage Sounds</h2>
+                    <button onClick={handleClose} className="text-dnd-text/40 hover:text-dnd-gold transition-colors p-2 hover:bg-white/5 rounded-full"><X size={24} /></button>
                 </div>
 
                 <div className="flex justify-end mb-4">
-                    <button onClick={() => setView('add')} className="flex items-center gap-2 py-2 px-4 rounded-xl text-white bg-amber-600 hover:bg-amber-500 shadow-lg hover:shadow-amber-900/20 transition-all">
+                    <button onClick={() => setView('add')} className="flex items-center gap-2 py-2 px-6 rounded-xl text-black bg-dnd-gold font-black uppercase tracking-widest hover:brightness-110 shadow-lg transition-all">
                         <Plus size={16}/> Add New Sound
                     </button>
                 </div>
@@ -692,7 +692,7 @@ export const SoundManagerModal: React.FC<SoundManagerModalProps> = ({
                     if (e.target === e.currentTarget) setConfirmDeleteId(null);
                 }}>
                     {sounds.length === 0 ? (
-                        <p className="text-stone-400 text-center py-8">Your sound library is empty. Add a sound to get started!</p>
+                        <p className="text-dnd-text/40 text-center py-8">Your sound library is empty. Add a sound to get started!</p>
                     ) : (
                         <div>
                         <SoundListSection 
@@ -724,7 +724,7 @@ export const SoundManagerModal: React.FC<SoundManagerModalProps> = ({
                 </div>
 
                 <div className="flex justify-end pt-6">
-                    <button onClick={handleClose} className="py-2 px-4 rounded-xl text-stone-300 hover:text-white hover:bg-stone-700/50 transition-colors">Close</button>
+                    <button onClick={handleClose} className="py-2 px-6 rounded-xl text-dnd-text/60 hover:text-dnd-gold hover:bg-white/5 transition-colors font-bold uppercase tracking-wider text-sm">Close</button>
                 </div>
             </>
         )}
@@ -733,12 +733,12 @@ export const SoundManagerModal: React.FC<SoundManagerModalProps> = ({
              <div className="flex flex-col flex-grow min-h-0">
                 <div className="flex justify-between items-center mb-6">
                     <div className="flex items-center gap-2">
-                         <button onClick={handleBackToList} className="p-2 text-stone-400 hover:text-white rounded-full hover:bg-stone-700/50 transition-colors">
+                         <button onClick={handleBackToList} className="p-2 text-dnd-text/40 hover:text-dnd-gold rounded-full hover:bg-white/5 transition-colors">
                              <ArrowLeft size={20} />
                          </button>
-                         <h2 className="text-2xl font-medieval font-bold text-white">Add New Sound</h2>
+                         <h2 className="text-2xl font-serif font-bold text-dnd-text">Add New Sound</h2>
                     </div>
-                    <button onClick={handleClose} className="text-stone-400 hover:text-white transition-colors p-2 hover:bg-stone-700/50 rounded-full"><X size={24} /></button>
+                    <button onClick={handleClose} className="text-dnd-text/40 hover:text-dnd-gold transition-colors p-2 hover:bg-white/5 rounded-full"><X size={24} /></button>
                 </div>
                 <div className="flex-grow min-h-0 overflow-y-auto pr-2 custom-scrollbar">
                     <AddSoundForm 
@@ -754,12 +754,12 @@ export const SoundManagerModal: React.FC<SoundManagerModalProps> = ({
              <div className="flex flex-col flex-grow min-h-0">
                 <div className="flex justify-between items-center mb-6">
                     <div className="flex items-center gap-2">
-                         <button onClick={handleBackToList} className="p-2 text-stone-400 hover:text-white rounded-full hover:bg-stone-700/50 transition-colors">
+                         <button onClick={handleBackToList} className="p-2 text-dnd-text/40 hover:text-dnd-gold rounded-full hover:bg-white/5 transition-colors">
                              <ArrowLeft size={20} />
                          </button>
-                         <h2 className="text-2xl font-medieval font-bold text-white">Edit Sound</h2>
+                         <h2 className="text-2xl font-serif font-bold text-dnd-text">Edit Sound</h2>
                     </div>
-                    <button onClick={handleClose} className="text-stone-400 hover:text-white transition-colors p-2 hover:bg-stone-700/50 rounded-full"><X size={24} /></button>
+                    <button onClick={handleClose} className="text-dnd-text/40 hover:text-dnd-gold transition-colors p-2 hover:bg-white/5 rounded-full"><X size={24} /></button>
                 </div>
                 <div className="flex-grow min-h-0 overflow-y-auto pr-2 custom-scrollbar">
                     <EditSoundForm 

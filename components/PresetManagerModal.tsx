@@ -78,14 +78,14 @@ export const PresetManagerModal: React.FC<PresetManagerModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div 
-        className={`absolute inset-0 bg-stone-950/40 backdrop-blur-sm transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}
+        className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}
         onClick={onClose}
       />
 
-      <div className={`relative bg-stone-900/60 backdrop-blur-2xl border border-stone-700/50 shadow-2xl rounded-3xl p-8 w-full max-w-lg m-4 ${isOpen ? 'animate-modal-in' : 'animate-modal-out'}`}>
+      <div className={`relative bg-dnd-panel/80 backdrop-blur-2xl border border-white/5 shadow-2xl rounded-3xl p-8 w-full max-w-lg m-4 ${isOpen ? 'animate-modal-in' : 'animate-modal-out'}`}>
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-3xl font-medieval font-bold text-white drop-shadow-sm">Manage Presets</h2>
-          <button onClick={onClose} className="text-stone-400 hover:text-white transition-colors p-2 hover:bg-stone-700/50 rounded-full"><X size={24} /></button>
+          <h2 className="text-3xl font-serif font-bold text-dnd-text drop-shadow-sm">Manage Presets</h2>
+          <button onClick={onClose} className="text-dnd-text/40 hover:text-dnd-gold transition-colors p-2 hover:bg-white/5 rounded-full"><X size={24} /></button>
         </div>
         
         {view === 'list' && (
@@ -93,26 +93,26 @@ export const PresetManagerModal: React.FC<PresetManagerModalProps> = ({
             <div className="flex justify-end mb-4">
                  <button 
                     onClick={handleCreateClick} 
-                    className="flex items-center gap-2 py-2 px-4 rounded-xl text-white bg-amber-600 hover:bg-amber-500 shadow-lg hover:shadow-amber-900/20 transition-all"
+                    className="flex items-center gap-2 py-2 px-6 rounded-xl text-black bg-dnd-gold font-black uppercase tracking-widest text-xs hover:brightness-110 shadow-lg transition-all"
                     >
                     <Plus size={16}/> New Preset
                 </button>
             </div>
-            <div className="space-y-2">
-            <h3 className="text-xl font-medieval font-semibold text-white">Your Presets</h3>
+            <div className="space-y-4">
+            <h3 className="text-xl font-serif font-bold text-dnd-text">Your Presets</h3>
             <div className="max-h-80 overflow-y-auto pr-2 custom-scrollbar">
                 {presets.length === 0 ? (
-                <p className="text-stone-400">You have no saved presets.</p>
+                <p className="text-dnd-text/40 italic">You have no saved presets.</p>
                 ) : (
                 <ul className="space-y-2">
                     {presets.map(preset => (
-                    <li key={preset.id} className="flex justify-between items-center bg-stone-800/50 hover:bg-stone-700/50 border border-stone-700/30 p-3 rounded-xl group transition-colors">
-                        <span className="text-white font-medium cursor-pointer hover:text-amber-400 transition-colors" onClick={() => { onLoadPreset(preset.id); onClose(); }}>{preset.name}</span>
+                    <li key={preset.id} className="flex justify-between items-center bg-black/40 hover:bg-black/60 border border-white/5 p-4 rounded-xl group transition-all">
+                        <span className="text-dnd-text font-bold cursor-pointer hover:text-dnd-gold transition-colors" onClick={() => { onLoadPreset(preset.id); onClose(); }}>{preset.name}</span>
                         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => handleEditClick(preset)} className="text-stone-400 hover:text-white p-2 hover:bg-stone-600 rounded-full transition-colors">
+                            <button onClick={() => handleEditClick(preset)} className="text-dnd-text/40 hover:text-dnd-gold p-2 hover:bg-white/5 rounded-full transition-colors">
                                 <Edit size={18} />
                             </button>
-                            <button onClick={() => handleDelete(preset.id)} className="text-red-400 hover:text-red-300 p-2 hover:bg-stone-600 rounded-full transition-colors">
+                            <button onClick={() => handleDelete(preset.id)} className="text-dnd-red/60 hover:text-dnd-red p-2 hover:bg-dnd-red/10 rounded-full transition-colors">
                                 <Trash2 size={18} />
                             </button>
                         </div>
@@ -123,7 +123,7 @@ export const PresetManagerModal: React.FC<PresetManagerModalProps> = ({
             </div>
             </div>
             <div className="flex justify-end pt-6">
-                <button onClick={onClose} className="py-2 px-4 rounded-xl text-stone-300 hover:text-white hover:bg-stone-700/50 transition-colors">Close</button>
+                <button onClick={onClose} className="py-2 px-6 rounded-xl text-dnd-text/40 hover:text-dnd-text transition-colors font-bold uppercase tracking-widest text-xs">Close</button>
             </div>
             </>
         )}

@@ -59,14 +59,14 @@ export const SearchWidget: React.FC<SearchWidgetProps> = ({ searchQuery, setSear
   return (
     <div className={`fixed bottom-4 right-4 z-30 flex justify-end`}>
       <div 
-        className={`flex items-center bg-stone-800/80 backdrop-blur-sm border border-stone-700 shadow-lg rounded-xl transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'w-64 p-2' : 'w-10 h-10 justify-center cursor-pointer hover:bg-stone-700'}`}
+        className={`flex items-center bg-dnd-panel/80 backdrop-blur-md border border-white/5 shadow-lg rounded-xl transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'w-64 p-2' : 'w-10 h-10 justify-center cursor-pointer hover:bg-white/5'}`}
         onClick={!isExpanded ? toggleExpand : undefined}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
         {isExpanded ? (
             <div className="flex items-center w-full gap-2">
-                <Search size={18} className="text-stone-400 ml-2 flex-shrink-0" />
+                <Search size={18} className="text-dnd-text/40 ml-2 flex-shrink-0" />
                 <input 
                     ref={inputRef}
                     type="text"
@@ -76,14 +76,14 @@ export const SearchWidget: React.FC<SearchWidgetProps> = ({ searchQuery, setSear
                     onBlur={handleBlur}
                     onKeyDown={handleKeyDown}
                     placeholder="Search..."
-                    className="bg-transparent border-none focus:ring-0 text-white text-sm w-full placeholder-stone-500 outline-none"
+                    className="bg-transparent border-none focus:ring-0 text-dnd-text text-sm w-full placeholder-dnd-text/20 outline-none font-sans"
                 />
-                <button onClick={handleClear} className="text-stone-400 hover:text-white p-1 rounded-full hover:bg-stone-700">
+                <button onClick={handleClear} className="text-dnd-text/40 hover:text-dnd-gold p-1 rounded-full hover:bg-white/5">
                     <X size={16} />
                 </button>
             </div>
         ) : (
-            <Search size={20} className={searchQuery ? "text-amber-500" : "text-stone-400"} />
+            <Search size={20} className={searchQuery ? "text-dnd-gold" : "text-dnd-text/40"} />
         )}
       </div>
     </div>

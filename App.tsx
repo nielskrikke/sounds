@@ -21,10 +21,13 @@ import { SceneManagerModal } from './components/SceneManagerModal';
 import { supabase } from './lib/supabase';
 import { AtmosphereFooter } from './components/AtmosphereFooter';
 import { SearchWidget } from './components/SearchWidget';
+import { cn } from './lib/utils';
+import { Skull, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isAuthLoading, setIsAuthLoading] = useState(false);
     const [authError, setAuthError] = useState<string | null>(null);
 
     const [sounds, setSounds] = useState<Sound[]>([]);
@@ -173,9 +176,11 @@ const App: React.FC = () => {
         const { username, password } = Object.fromEntries(new FormData(e.currentTarget));
         if (typeof username !== 'string' || typeof password !== 'string') return;
 
+        setIsAuthLoading(true);
+        setAuthError(null);
         const { error } = await signInWithUsername(username, password);
         if (error) setAuthError(error.message);
-        else setAuthError(null);
+        setIsAuthLoading(false);
     };
 
     const handleLogout = async () => {
@@ -340,35 +345,72 @@ const App: React.FC = () => {
     };
 
     if (isLoading) {
-        return <div className="h-screen w-screen flex items-center justify-center bg-stone-900 text-white">Loading...</div>;
+        return <div className="h-screen w-screen flex items-center justify-center bg-dnd-dark text-dnd-gold">
+            <Loader2 className="w-8 h-8 animate-spin" />
+        </div>;
     }
 
     if (!user) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-stone-900 via-stone-800 to-stone-900 flex flex-col justify-center items-center p-4">
-                <div className="w-full max-w-sm">
-                    <img 
-                        src="https://nielskrikke.com/wp-content/uploads/2025/12/sound-app-icon-v2.png" 
-                        alt="Logo" 
-                        className="w-24 h-24 mx-auto mb-6 shadow-2xl rounded-2xl hover:scale-105 transition-transform duration-500 ease-out"
-                    />
-                    <h1 className="text-5xl font-medieval font-bold text-center text-white mb-8 drop-shadow-md">Sound Forge</h1>
-                    <form onSubmit={handleLogin} className="bg-stone-900/60 backdrop-blur-2xl border border-stone-700/50 shadow-2xl rounded-3xl px-8 pt-6 pb-8 mb-4 animate-modal-in">
-                        <div className="mb-4">
-                            <label className="block text-stone-300 text-sm font-bold mb-2" htmlFor="username">Username</label>
-                            <input className="shadow appearance-none border border-stone-600/50 rounded-xl w-full py-2 px-3 bg-stone-800/40 text-white leading-tight focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all" id="username" name="username" type="text" placeholder="Username" required />
+            <div className="min-h-screen bg-dnd-dark text-dnd-text font-sans selection:bg-dnd-gold selection:text-black">
+                <div className="h-screen">
+                    <div className="h-full flex flex-col items-center justify-center relative bg-dnd-dark overflow-hidden">
+                        {/* Background Accent */}
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-dnd-gold/5 rounded-full blur-[120px] pointer-events-none"></div>
+                        
+                        <div className="relative z-10 flex flex-col items-center w-full max-w-md px-6">
+                            <div className="mb-2 relative text-center">
+                                <h1 className="text-5xl md:text-8xl font-serif font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-[#e5c983] to-[#8a7238] drop-shadow-2xl uppercase">
+                                    Soundscape
+                                </h1>
+                            </div>
+                            
+                            <div className="h-px w-32 bg-gradient-to-r from-transparent via-[#5c5f66] to-transparent mb-10"></div>
+
+                            {authError && (
+                                <div className="mb-6 p-4 bg-dnd-red/10 border border-dnd-red/30 rounded-lg w-full">
+                                    <p className="text-dnd-red text-sm font-bold flex items-center justify-center gap-2">
+                                        <Skull className="w-4 h-4" />
+                                        {authError}
+                                    </p>
+                                </div>
+                            )}
+
+                            <form 
+                                onSubmit={handleLogin}
+                                className="flex flex-col items-center gap-6 w-full"
+                            >
+                                <div className="w-full relative flex flex-col gap-4">
+                                    <input 
+                                        type="text" 
+                                        name="username"
+                                        placeholder="Enter Username..." 
+                                        disabled={isAuthLoading}
+                                        required
+                                        className="w-full bg-[#1b1c20]/80 border border-gray-700 rounded-lg py-4 px-6 text-center text-white placeholder:text-gray-600 focus:border-dnd-gold focus:outline-none transition-colors text-lg font-bold" 
+                                    />
+                                    <input 
+                                        type="password" 
+                                        name="password"
+                                        placeholder="Enter Password..." 
+                                        disabled={isAuthLoading}
+                                        required
+                                        className="w-full bg-[#1b1c20]/80 border border-gray-700 rounded-lg py-4 px-6 text-center text-white placeholder:text-gray-600 focus:border-dnd-gold focus:outline-none transition-colors text-lg font-bold" 
+                                    />
+                                </div>
+                                
+                                <button 
+                                    type="submit" 
+                                    disabled={isAuthLoading}
+                                    className="group relative w-full px-8 py-4 bg-dnd-gold text-black hover:brightness-110 rounded shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <span className="relative font-black uppercase tracking-widest text-sm flex items-center justify-center gap-3">
+                                        {isAuthLoading ? <Loader2 className="animate-spin h-5 w-5" /> : 'Enter Soundscape'}
+                                    </span>
+                                </button>
+                            </form>
                         </div>
-                        <div className="mb-6">
-                            <label className="block text-stone-300 text-sm font-bold mb-2" htmlFor="password">Password</label>
-                            <input className="shadow appearance-none border border-stone-600/50 rounded-xl w-full py-2 px-3 bg-stone-800/40 text-white mb-3 leading-tight focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all" id="password" name="password" type="password" placeholder="******************" required />
-                            {authError && <p className="text-red-400 text-xs italic bg-red-900/20 p-2 rounded border border-red-800/50">{authError}</p>}
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <button className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-xl focus:outline-none focus:shadow-outline w-full shadow-lg hover:shadow-amber-900/20 transition-all hover:scale-105 active:scale-95 duration-300" type="submit">
-                                Sign In / Sign Up
-                            </button>
-                        </div>
-                    </form>
+                    </div>
                 </div>
             </div>
         );
@@ -476,8 +518,8 @@ const App: React.FC = () => {
         });
     
         return (
-            <section className="mb-8">
-                <h2 className="text-2xl font-medieval font-bold text-white mb-4">{title}</h2>
+            <section className="mb-8 relative z-10">
+                <h2 className="text-2xl font-serif font-bold text-white mb-4 tracking-tight">{title}</h2>
                 {filterUI}
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 md:gap-4">
                     {sectionSounds.map(sound => (
@@ -498,7 +540,11 @@ const App: React.FC = () => {
     const sortedLibrarySounds = [...librarySounds].sort((a, b) => a.name.localeCompare(b.name));
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-stone-900 via-stone-800 to-stone-900 flex flex-col">
+        <div className="min-h-screen bg-dnd-dark flex flex-col relative overflow-x-hidden">
+            {/* Atmospheric Glows */}
+            <div className="fixed top-0 left-0 w-[500px] h-[500px] bg-dnd-gold/5 rounded-full blur-[120px] pointer-events-none -translate-x-1/2 -translate-y-1/2"></div>
+            <div className="fixed bottom-0 right-0 w-[500px] h-[500px] bg-dnd-gold/5 rounded-full blur-[120px] pointer-events-none translate-x-1/2 translate-y-1/2"></div>
+
             <SceneHeader
                 scenes={scenes}
                 activeSceneId={activeSceneId}
@@ -515,19 +561,19 @@ const App: React.FC = () => {
                 isPlayerVisible={isAnythingPlaying}
             />
 
-            <main className="flex-grow p-4 md:p-8 pb-24">
+            <main className="flex-grow p-4 md:p-8 pb-24 relative z-10">
                 {renderSoundSection('Background Music', 'Background Music')}
                 {renderSoundSection('Ambience', 'Ambience')}
                 {renderSoundSection('One-shots', 'One-shots')}
 
                  {sounds.length === 0 && librarySounds.length > 0 && (
-                    <div className="text-center text-stone-400 mt-10">
+                    <div className="text-center text-dnd-text/40 mt-10">
                         {searchQuery ? (
                              <p className="text-lg">No sounds match "{searchQuery}"</p>
                         ) : (
                             <>
-                                <p className="text-lg">No sounds found in this scene.</p>
-                                <p>Try selecting another scene or "All".</p>
+                                <p className="text-lg font-serif">No sounds found in this scene.</p>
+                                <p className="text-sm">Try selecting another scene or "All".</p>
                             </>
                         )}
                     </div>

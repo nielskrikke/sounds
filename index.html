@@ -2,20 +2,31 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" href="https://nielskrikke.com/wp-content/uploads/2025/12/sound-app-icon-v2.png" />
-    <link rel="apple-touch-icon" href="https://nielskrikke.com/wp-content/uploads/2025/12/sound-app-icon-v2.png" />
+    <link rel="icon" href="https://nielskrikke.com/wp-content/uploads/2026/04/sounds-icon-new.png" />
+    <link rel="apple-touch-icon" href="https://nielskrikke.com/wp-content/uploads/2026/04/sounds-icon-new.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sound Forge</title>
+    <title>Soundscape</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
         theme: {
           extend: {
+            colors: {
+              dnd: {
+                dark: '#151515',   // Deep background
+                panel: '#1c1c1c',  // Card/Sidebar background
+                text: '#e0e0e0',   // Primary body text
+                gold: '#c9ad6a',   // Primary accent (buttons, highlights, active states)
+                red: '#8a0b0b',    // Danger/Secret/Alert accent
+              }
+            },
             fontFamily: {
-              medieval: ['"MedievalSharp"', 'cursive'],
+              serif: ['"Playfair Display"', 'serif'],
+              sans: ['"Inter"', 'sans-serif'],
+              mono: ['"JetBrains Mono"', 'monospace'],
             },
             keyframes: {
                glow: {
@@ -63,8 +74,9 @@
   }
 }
 </script>
+<link rel="stylesheet" href="/index.css">
 </head>
-  <body class="bg-stone-900">
+  <body class="bg-dnd-dark text-dnd-text selection:bg-dnd-gold selection:text-black">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

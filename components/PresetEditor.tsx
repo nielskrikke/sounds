@@ -11,17 +11,17 @@ interface PresetEditorProps {
 
 const SoundGroup: React.FC<{ title: string; sounds: Sound[]; selectedIds: Set<string>; onToggle: (id: string) => void; }> = ({ title, sounds, selectedIds, onToggle }) => (
     <div>
-        <h4 className="text-md font-semibold text-stone-300 mt-4 mb-2 border-b border-stone-600 pb-1">{title}</h4>
-        <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+        <h4 className="text-xs font-black uppercase tracking-widest text-dnd-text/40 mt-6 mb-3 border-b border-white/5 pb-1">{title}</h4>
+        <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
             {sounds.map(sound => (
-                <label key={sound.id} className="flex items-center space-x-3 p-2 rounded-md hover:bg-stone-700/50 transition-colors cursor-pointer">
+                <label key={sound.id} className="flex items-center space-x-3 p-3 rounded-xl hover:bg-white/5 transition-all cursor-pointer group">
                     <input
                         type="checkbox"
                         checked={selectedIds.has(sound.id)}
                         onChange={() => onToggle(sound.id)}
-                        className="h-4 w-4 rounded accent-amber-500 bg-stone-600 border-stone-500"
+                        className="h-4 w-4 rounded accent-dnd-gold bg-black/40 border-white/10"
                     />
-                    <span className="text-white">{sound.name}</span>
+                    <span className="text-dnd-text group-hover:text-dnd-gold transition-colors font-medium">{sound.name}</span>
                 </label>
             ))}
         </div>
@@ -63,34 +63,34 @@ export const PresetEditor: React.FC<PresetEditorProps> = ({ preset, allSounds, o
 
   return (
     <div>
-      <h3 className="text-xl font-medieval font-semibold text-white mb-4">{preset ? 'Edit Preset' : 'Create New Preset'}</h3>
-      <div className="space-y-4">
+      <h3 className="text-xl font-serif font-bold text-dnd-text mb-6">{preset ? 'Edit Preset' : 'Create New Preset'}</h3>
+      <div className="space-y-6">
         <div>
-          <label htmlFor="preset-name" className="block text-sm font-medium text-stone-300">Preset Name</label>
+          <label htmlFor="preset-name" className="block text-xs font-black uppercase tracking-widest text-dnd-text/40 mb-2">Preset Name</label>
           <input
             id="preset-name"
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g., Tavern Night"
-            className="mt-1 block w-full bg-stone-700 border border-stone-600 rounded-md p-2 text-white"
+            className="mt-1 block w-full bg-black/40 border border-white/10 rounded-xl p-3 text-dnd-text placeholder-dnd-text/20 focus:border-dnd-gold outline-none transition-all"
             required
           />
         </div>
         <div>
-            <p className="block text-sm font-medium text-stone-300 mb-2">Select Sounds ({selectedSoundIds.size} selected)</p>
-            <div className="bg-stone-900/50 p-3 rounded-md border border-stone-700">
+            <p className="block text-xs font-black uppercase tracking-widest text-dnd-text/40 mb-3">Select Sounds ({selectedSoundIds.size} selected)</p>
+            <div className="bg-black/40 p-4 rounded-2xl border border-white/5">
                 <SoundGroup title="Background Music" sounds={soundsByType('Background Music')} selectedIds={selectedSoundIds} onToggle={handleToggleSound} />
                 <SoundGroup title="Ambience" sounds={soundsByType('Ambience')} selectedIds={selectedSoundIds} onToggle={handleToggleSound} />
                 <SoundGroup title="One-shots" sounds={soundsByType('One-shots')} selectedIds={selectedSoundIds} onToggle={handleToggleSound} />
             </div>
         </div>
       </div>
-      <div className="flex justify-end gap-4 pt-6">
-        <button type="button" onClick={onCancel} className="py-2 px-4 rounded-md text-white bg-stone-600 hover:bg-stone-500">
+      <div className="flex justify-end gap-4 pt-8">
+        <button type="button" onClick={onCancel} className="py-2 px-6 rounded-xl text-dnd-text/40 hover:text-dnd-text transition-colors font-bold uppercase tracking-widest text-xs">
           Cancel
         </button>
-        <button onClick={handleSave} disabled={isSubmitting || !name.trim()} className="py-2 px-4 rounded-md text-white bg-amber-600 hover:bg-amber-500 disabled:bg-stone-500">
+        <button onClick={handleSave} disabled={isSubmitting || !name.trim()} className="py-2 px-8 rounded-xl text-black bg-dnd-gold font-black uppercase tracking-widest hover:brightness-110 disabled:bg-white/10 disabled:text-dnd-text/40 shadow-lg transition-all">
           {isSubmitting ? 'Saving...' : 'Save Preset'}
         </button>
       </div>
