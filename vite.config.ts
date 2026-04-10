@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 6940,
         host: '127.0.0.1',
+    allowedHosts: ['sounds.nielskrikke.com'],
       },
       plugins: [react()],
       define: {
