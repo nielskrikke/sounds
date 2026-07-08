@@ -1,0 +1,12 @@
+services:
+  niels-sounds-app:
+    build: .
+    container_name: niels-sounds-app
+    networks:
+      nielsnet:
+        ipv4_address: 172.23.0.40
+
+networks:
+  nielsnet:
+    external: true
+    name: nielsnet
